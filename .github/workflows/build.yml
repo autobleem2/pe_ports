@@ -1,0 +1,79 @@
+# pe_ports CI: every port built in the shared autobleem-build image (ci/build.sh all), one PE package (.mod) and one
+# source archive per port. A v* tag publishes them as a release; develop keeps the rolling `nightly` pre-release
+# current. Gated by AB_CI_ENABLED, like every autobleem2 repository - it runs once this repository exists on GitHub.
+#
+# The build runs through `docker run` (not a container job) so the image's digest can be written into the source
+# archives: a container job does not tell its steps which digest it runs.
+name: build
+on:
+  push:
+    branches: [develop, master]
+    tags: ['v*']
+  pull_request:
+    branches: [develop, master]
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    if: vars.AB_CI_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Cache the build dependencies that are not in git
+        uses: actions/cache@v4
+        with:
+          path: build_data
+          key: pe-ports-data-${{ hashFiles('ports/*/build.sh') }}
+      - name: The build image
+        run: |
+          tag=$([[ "$GITHUB_REF" == refs/tags/v* ]] && echo latest || echo develop)
+          image=ghcr.io/autobleem2/autobleem-build:$tag
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "$image"
+          echo "AB_BUILD_IMAGE=$image" >> "$GITHUB_ENV"
+          echo "AB_BUILD_IMAGE_DIGEST=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}' | sed 's/.*@//')" >> "$GITHUB_ENV"
+      - name: Build every port
+        run: |
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
+            -e AB_BUILD_IMAGE -e AB_BUILD_IMAGE_DIGEST "$AB_BUILD_IMAGE" ci/build.sh all
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pe-ports-packages
+          path: out/*
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: pe-ports-packages, path: out }
+      - name: Attach to the release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          prerelease=""; case "${GITHUB_REF_NAME}" in *-alpha*|*-beta*|*-rc*|*-pre*) prerelease="--prerelease";; esac
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --title "PE ports ${GITHUB_REF_NAME}" --generate-notes $prerelease out/* || \
+          gh release upload "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" out/* --clobber
+
+  nightly:
+    if: github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: pe-ports-packages, path: out }
+      - uses: autobleem2/autobleem-build/.github/actions/nightly-release@develop
+        with:
+          files: out/*

@@ -1,0 +1,45 @@
+diff --git a/common/sdl_common.c b/common/sdl_common.c
+index c23e642..1d5d51d 100644
+--- a/common/sdl_common.c
++++ b/common/sdl_common.c
+@@ -77,6 +77,7 @@ VID_SDL_InitModeList(void)
+     if (err)
+ 	Sys_Error("%s: Unable to query desktop display mode (%s)",
+ 		  __func__, SDL_GetError());
++    sdlmode.format = SDL_PIXELFORMAT_ABGR8888;
+     sdl_desktop_format = SDL_AllocFormat(sdlmode.format);
+     if (!sdl_desktop_format)
+ 	Sys_Error("%s: Unable to allocate desktop pixel format (%s)",
+@@ -114,7 +115,7 @@ VID_SDL_InitModeList(void)
+ 	if (err)
+ 	    Sys_Error("%s: couldn't get mode %d info (%s)",
+ 		      __func__, i, SDL_GetError());
+-
++    sdlmode.format = SDL_PIXELFORMAT_ABGR8888;
+ 	Sys_Printf("%s: checking mode %i: %dx%d, %s\n", __func__,
+ 		   i, sdlmode.w, sdlmode.h, SDL_GetPixelFormatName(sdlmode.format));
+ 
+diff --git a/common/vid_sdl.c b/common/vid_sdl.c
+index 0ae1f65..3cf332b 100644
+--- a/common/vid_sdl.c
++++ b/common/vid_sdl.c
+@@ -84,6 +84,10 @@ VID_GetDesktopRect(vrect_t *rect)
+     display = SDL_GetWindowDisplayIndex(sdl_window);
+     SDL_GetDesktopDisplayMode(display, &mode);
+ 
++    // Classic Hardcode
++    mode.w = 1280;
++    mode.h = 720;
++     
+     rect->x = 0;
+     rect->y = 0;
+     rect->width = mode.w;
+@@ -215,7 +219,7 @@ VID_SetMode(const qvidmode_t *mode, const byte *palette)
+ 	SDL_FreeFormat(sdl_format);
+ 
+     format = (const qvidformat_t *)mode->driverdata;
+-    sdl_format = SDL_AllocFormat(format->format);
++    sdl_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
+ 
+     sdl_window = SDL_CreateWindow("TyrQuake",
+ 				  SDL_WINDOWPOS_UNDEFINED,

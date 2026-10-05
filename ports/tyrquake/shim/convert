@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""A stand-in for ImageMagick's `convert`, which TyrQuake's Makefile calls once to turn its icon into a C header
+(convert <png> -resize WxH -define h:format=rgba -depth 8 -size WxH <out.h>). The build image has no ImageMagick,
+and the window icon of a full-screen console program is not worth a dependency: the header is made from our own
+generated icon (tools/mkmod.py) in the form ImageMagick writes it - one `static const unsigned char MagickImage[]`
+of raw RGBA bytes. Nothing else of `convert` is supported.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools"))
+import mkmod  # noqa: E402
+
+args = sys.argv[1:]
+if "-resize" not in args:
+    sys.exit("convert (stand-in): only the icon header call of TyrQuake's Makefile is supported")
+size = int(args[args.index("-resize") + 1].split("x")[0])
+out = args[-1]
+pixels = mkmod.icon_pixels("tyrquake", ["TYR", "QUAKE"], size)
+data = bytes(c for row in pixels for px in row for c in px)
+with open(out, "w", newline="\n") as f:
+    f.write("static const unsigned char\n  MagickImage[] =\n  {\n")
+    for i in range(0, len(data), 16):
+        f.write("    " + ", ".join("0x%02x" % b for b in data[i:i + 16]) + (",\n" if i + 16 < len(data) else "\n"))
+    f.write("  };\n")

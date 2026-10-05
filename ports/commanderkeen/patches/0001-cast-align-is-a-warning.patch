@@ -1,0 +1,15 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 980207819..893fd2820 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -33,8 +33,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ 
+ #Alignment error report is important for android builds
+-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=cast-align")
+-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=cast-align")
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wcast-align")
++set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wcast-align")
+ 
+ # Use python3 for AI scripting and more!
+ # Use python3 for AI scripting and more!

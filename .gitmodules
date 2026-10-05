@@ -1,0 +1,12 @@
+[submodule "ports/openlara/upstream"]
+	path = ports/openlara/upstream
+	url = https://github.com/XProger/OpenLara
+[submodule "ports/commanderkeen/upstream"]
+	path = ports/commanderkeen/upstream
+	url = https://github.com/gerstrong/Commander-Genius
+[submodule "ports/openjazz/upstream"]
+	path = ports/openjazz/upstream
+	url = https://gitlab.com/modmyclassic/ports/openjazz-sdl2.git
+[submodule "ports/tyrquake/upstream"]
+	path = ports/tyrquake/upstream
+	url = git://disenchant.net/tyrquake
