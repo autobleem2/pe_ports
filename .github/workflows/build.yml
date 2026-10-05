@@ -44,6 +44,15 @@ jobs:
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
             -e AB_BUILD_IMAGE -e AB_BUILD_IMAGE_DIGEST "$AB_BUILD_IMAGE" ci/build.sh all
+      - name: Every package comes with its source archive
+        run: |
+          ls -l out
+          n=0
+          for m in out/*.mod; do
+            [ -f "${m%.mod}-source.tar.gz" ] || { echo "no source archive for $m" >&2; exit 1; }
+            n=$((n+1))
+          done
+          [ "$n" -ge 1 ] || { echo "no packages built" >&2; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: pe-ports-packages
@@ -78,10 +87,13 @@ jobs:
         with:
           files: out/*
 
-  # the GPL source mirror: a release's source archives go to the download site's source/<id>/ (the address each
-  # package's SOURCE.txt names), where they stay at least 3 years after the item's last release. On the psc-build
-  # runner, where the site's tree is, in the build image: the way ext_store's `site` job publishes. The publish tools
-  # come from autobleem-repo's develop (its page generator is three-way merged with the site's copy).
+  # the download site (a v* release only - nightlies stay GitHub pre-release assets): the source archives go to
+  # source/<id>/ (the address each package's SOURCE.txt names; kept at least 3 years after the item's last release),
+  # then the .mod, its icon and its `pe` item descriptor (tools/store_item.py) to the Store's PSC catalog, store/psc/;
+  # the site's index run lists them in the catalog and on the Store page. All of it or nothing: store_item.py stops
+  # when a port's package or source is missing, and it runs before anything is published. On the psc-build runner,
+  # where the site's tree is, in the build image: the way ext_store's `site` job publishes. The publish tools come
+  # from autobleem-repo's develop (its page generator is three-way merged with the site's copy).
   site:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
@@ -97,13 +109,17 @@ jobs:
           fetch-depth: 0
       - uses: actions/checkout@v7
         with:
-          path: pe-ports # only ports/*/ is read, for the ids
+          path: pe-ports # ports/ and tools/store_item.py
       - uses: actions/download-artifact@v8
         with: { name: pe-ports-packages, path: out }
-      - name: Publish the source archives to the download site
+      - name: The Store items (all or nothing)
+        run: |
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD/pe-ports" ghcr.io/autobleem2/autobleem-build:latest \
+            python3 tools/store_item.py --out "$PWD/out" --dest "$PWD/store-out"
+      - name: Publish the source archives and the Store items to the download site
         run: |
           set -euo pipefail
-          ls -l out
+          ls -l out store-out
           for d in pe-ports/ports/*/; do
             id=$(basename "$d")
             set -- "$PWD"/out/"$id"-*-source.tar.gz
@@ -114,3 +130,8 @@ jobs:
               ghcr.io/autobleem2/autobleem-build:latest \
               bash tools/repo_publish.sh --local pe-source "$id" "$@"
           done
+          docker run --rm \
+            -v "$PWD:$PWD" -w "$PWD/autobleem-repo-tools" -v "$AB_REPO_DIR:$AB_REPO_DIR" -e REPO_DIR="$AB_REPO_DIR" \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            ghcr.io/autobleem2/autobleem-build:latest \
+            bash tools/repo_publish.sh --local store psc "$PWD"/store-out/*

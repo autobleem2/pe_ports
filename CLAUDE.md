@@ -16,9 +16,17 @@ What this repository is and its layout: `README.md`. Rules that matter when you 
   `https://autobleem.retromenele.pl/deps`, uploaded once with autobleem-repo's `repo_publish.sh deps <name> FILE`), with
   the upstream address as the fallback: `fetch <our url> <sha256> <file> <upstream url>`. A file that does not match
   the sha256 is skipped like a missing one.
-- A release tag publishes each port's `-source.tar.gz` to the site's `source/<id>/` (the `site` job in
-  `.github/workflows/build.yml`; the address `tools/mkmod.py` puts into SOURCE.txt). Those archives are kept at least
-  3 years after the port's last release.
+- **Releases and nightlies (the owner's lead, 2026-10-05):** the download site and the Store take **only v\* releases**.
+  A v* tag's `site` job (`.github/workflows/build.yml`) publishes, with autobleem-repo's `repo_publish.sh --local`:
+  each port's `-source.tar.gz` to `source/<id>/` (the address `tools/mkmod.py` puts into SOURCE.txt; kept at least
+  3 years after the port's last release, never replaced with other bytes), then the `.mod`, the icon and the `pe/<id>`
+  item descriptor made by `tools/store_item.py` (title, version, author, licence, description from `port.ini`,
+  `source_url`, the one .mod in files[]) to `store psc`; the site's index run lists them in the catalog and on the
+  Store page. A new port needs nothing more than its `port.ini`. Nightlies (develop pushes) stay GitHub pre-release
+  assets: the `nightly` release carries every `.mod` with its `-source.tar.gz` next to it (the build job fails when a
+  `.mod` has no source archive), and nothing of them reaches the site.
+- **A release is a gate:** a port that fails to build on a tag stops the whole `build` job, so `site` never runs and
+  nothing of that tag is published (`store_item.py` also refuses a missing `.mod` or source). Fix the port and tag again.
 - A package's launcher_filename is the key of its program in the launcher's `rc/pe_compat.ini`: keep `[pad]` in
   `port.ini` and that file in step (the pad mode and flags are the launcher's, not the package's).
 - Build only in the autobleem-build image (`docker run ... ci/build.sh <port>`); delete `build/`, `out/` and
