@@ -388,9 +388,11 @@ def main():
             f.write(source_txt(cfg, source_url, sha, digest, image))
         os.makedirs(os.path.join(folder, "licences"), exist_ok=True)
         for lic in p["licence_files"].split():
-            shutil.copyfile(os.path.join(a.src, lic), os.path.join(folder, "licences", os.path.basename(lic) + ".txt"))
-        for extra in cfg["port"].get("licence_extra", "").split():
-            shutil.copyfile(os.path.join(a.src, extra), os.path.join(folder, "licences", os.path.basename(extra) + ".txt"))
+            # GsKit/LICENSE -> licences/GsKit-LICENSE.txt: the path in the name keeps two LICENSE files apart
+            name = lic.replace("/", "-")
+            if not name.lower().endswith(".txt"):
+                name += ".txt"
+            shutil.copyfile(os.path.join(a.src, lic), os.path.join(folder, "licences", name))
 
         # ---- data.tar.xz
         entries = []
