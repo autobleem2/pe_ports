@@ -1,4 +1,6 @@
 # Commander Genius 2.4.0: CMake, SDL2 renderer (no OpenGL, so no libGL), the launcher's shared SDL2 family.
+# TrueType text stays on (upstream's default, SDL2_ttf is in the family): at this commit the launcher menu's text
+# without it asks for legacy font -1 and stops with std::out_of_range (vector::at 255) as the menu appears.
 # Sourced by ci/build.sh with $SRC (the upstream), $STAGE (the launcher folder's files), $PORT_DIR, fetch().
 port_build() {
     # Boost's property_tree headers (header-only; the image has no Boost): the release tarball, pinned, from our
@@ -13,7 +15,7 @@ port_build() {
 
     cmake -S "$SRC" -B "$BUILD_DIR/cmake" -G Ninja -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" \
-        -DUSE_OPENGL=No -DUSE_SDL_TTF=No -DDOWNLOADER=No -DBUILD_TARGET=LINUX -DCMAKE_SKIP_RPATH=ON \
+        -DUSE_OPENGL=No -DDOWNLOADER=No -DBUILD_TARGET=LINUX -DCMAKE_SKIP_RPATH=ON \
         -DBoost_INCLUDE_DIR="$PE_EXTRA_ROOT" -DBoost_NO_BOOST_CMAKE=ON \
         -DZLIB_LIBRARY="$PSC/sysroot/usr/lib/arm-linux-gnueabihf/libz.a" -DZLIB_INCLUDE_DIR="$PSC/sysroot/usr/include"
     ninja -C "$BUILD_DIR/cmake" -j "$JOBS"

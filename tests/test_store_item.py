@@ -12,14 +12,20 @@ import pytest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCRIPT = os.path.join(ROOT, "tools", "store_item.py")
 SITE_TOOLS = os.environ.get("PE_SITE_TOOLS") or os.path.abspath(os.path.join(ROOT, "..", "pe-site", "tools"))
-SOURCE = "https://autobleem.retromenele.pl/source/commanderkeen/commanderkeen-2.4.0-1-source.tar.gz"
+def port_version(pid):
+    with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
+        return [ln.split("=", 1)[1] for ln in f.read().splitlines() if ln.startswith("version=")][0].strip()
+
+
+# the package's version is port.ini's: a version bump does not touch these tests
+CK = "commanderkeen-" + port_version("commanderkeen")
+SOURCE = "https://autobleem.retromenele.pl/source/commanderkeen/" + CK + "-source.tar.gz"
 
 
 def release(out, ports=("commanderkeen",), source=True):
     os.makedirs(out, exist_ok=True)
     for pid in ports:
-        with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
-            ver = [ln.split("=", 1)[1] for ln in f.read().splitlines() if ln.startswith("version=")][0].strip()
+        ver = port_version(pid)
         with open(os.path.join(out, "%s-%s.mod" % (pid, ver)), "wb") as f:
             f.write(b"mod " + pid.encode())
         if source:
@@ -39,13 +45,14 @@ def test_descriptor_from_port_ini():
         with open(os.path.join(w, "d", "commanderkeen.item.json"), encoding="utf-8") as f:
             d = json.load(f)
         assert d["id"] == "pe/commanderkeen" and d["kind"] == "pe"
-        assert d["title"] == "Commander Genius (Keen 1)" and d["version"] == "2.4.0-1" and d["licence"] == "GPL-2.0"
+        assert d["title"] == "Commander Genius (Keen 1)" and d["licence"] == "GPL-2.0"
+        assert d["version"] == port_version("commanderkeen")
         assert d["source_url"] == SOURCE
-        assert d["files"] == [{"name": "commanderkeen-2.4.0-1.mod"}]  # the source archive is never a file
+        assert d["files"] == [{"name": CK + ".mod"}]  # the source archive is never a file
         assert d["image"] == "commanderkeen.png"
         with open(os.path.join(w, "d", "commanderkeen.png"), "rb") as f:
             assert f.read(8) == b"\x89PNG\r\n\x1a\n"
-        assert os.path.isfile(os.path.join(w, "d", "commanderkeen-2.4.0-1.mod"))
+        assert os.path.isfile(os.path.join(w, "d", CK + ".mod"))
 
 
 def test_a_missing_package_stops_the_release():

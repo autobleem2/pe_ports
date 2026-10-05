@@ -1,0 +1,43 @@
+diff --git a/src/io/gfx/video.cpp b/src/io/gfx/video.cpp
+index 8c44534..16dbc0e 100644
+--- a/src/io/gfx/video.cpp
++++ b/src/io/gfx/video.cpp
+@@ -84,6 +84,11 @@ Video::Video () {
+ 	int count;
+ 
+ 	screen = NULL;
++#ifdef SDL2
++	window = NULL;
++	renderer = NULL;
++	texture = NULL;
++#endif
+ 
+ #ifdef SCALE
+ 	scaleFactor = 1;
+@@ -205,8 +210,13 @@ redMask   = 0x000000ff;
+ greenMask = 0x0000ff00;
+ blueMask  = 0x00ff0000;
+ 
+-window = SDL_CreateWindow("", 0, 0, 1280, 720, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+-renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC); 
++// One window and one renderer for the whole run: reset() runs again right after init() (setScaleFactor), and a
++// second window with its own GL context over the first left the screen black on the console. Full screen, as the
++// console's compositor expects of a game.
++if (!window) {
++window = SDL_CreateWindow("", 0, 0, 1280, 720, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP);
++renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
++}
+ 
+ // The buffer where the game puts each frame into.
+ screen = SDL_CreateRGBSurface(SDL_SWSURFACE, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 8, 0, 0, 0, 0);
+@@ -215,8 +225,10 @@ screen = SDL_CreateRGBSurface(SDL_SWSURFACE, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREE
+ helper_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 32, redMask, greenMask, blueMask, 0); 
+ 
+ // THE SDL2 texture
++if (!texture) {
+ texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+ 	DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT);
++}
+ 
+ // Sure clear the screen first.. always nice.
+ SDL_RenderClear(renderer);
