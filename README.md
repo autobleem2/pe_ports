@@ -67,15 +67,20 @@ The mod's `launch.sh` runs inside AutoBleem's PE environment (`rc/pe_run.sh`): i
 
 ### The pad
 
-The pad flags are **not** in the package; the launcher reads them from its `rc/pe_compat.ini`, one section per
-`launcher_filename`. `port.ini` records what that section should say, so the two stay in step:
+Every port is written for **the console's own pad**, the one pad every 2020 package was built against and the only
+one the launcher shows a PE program (`psc-kernel`, its default: any pad the player uses becomes that pad). The
+launcher's `rc/pe_compat.ini` sets no pad for any program - a setting there would reach the original 2020 package of
+the same `launcher_filename` too - so a port fits the pad, never the other way round: its config or a patch binds the
+console pad's numbers. Those are SDL joystick buttons 0..9 = Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select,
+Start, and axes 0/1 = the d-pad (-32768 / 0 / 32767; the left stick past half travel moves them too); no hat, no other
+axis. `port.ini`'s `[pad]` records that, the same for every port:
 
-| port | PadMode | Dpad2Analog | Analog2Dpad |
-|---|---|---|---|
-| openlara | psc-kernel | 0 | 1 |
-| commanderkeen | psc-kernel | 0 | 1 |
-| openjazz | psc-kernel | 0 | 1 |
-| tyrquake | psc-kernel | 0 | 1 |
+| port | PadMode | Dpad2Analog | Analog2Dpad | how it binds the pad |
+|---|---|---|---|---|
+| commanderkeen | psc-kernel | 0 | 1 | `files/cgenius.cfg` [input0]: Cross jump/confirm, Circle pogo, Square fire, Triangle run, L1 status, R1 camera, Select help, Start the menu; axes 0/1 steer |
+| openjazz | psc-kernel | 0 | 1 | `patches/0002-psc-pad-buttons.patch`: Cross fire/confirm, Circle jump, Triangle weapon, Start the menu, Select pause |
+| openlara | psc-kernel | 0 | 1 | the console pad's evdev codes (upstream) |
+| tyrquake | psc-kernel | 0 | 1 | `patches/0002-sdl-pad-input.patch` and the 2020 `config.cfg` |
 
 ### Where the source goes
 
