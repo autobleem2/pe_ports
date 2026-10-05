@@ -80,7 +80,7 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 | commanderkeen | psc-kernel | 0 | 1 | `files/cgenius.cfg` [input0]: Cross jump/confirm, Circle pogo, Square fire, Triangle run, L1 status, R1 camera, Select help, Start the menu; axes 0/1 steer |
 | openjazz | psc-kernel | 0 | 1 | `patches/0002-psc-pad-buttons.patch`: Cross fire/confirm, Circle jump, Triangle weapon, Start the menu, Select pause |
 | openlara | psc-kernel | 0 | 1 | the console pad's evdev codes (upstream) |
-| tyrquake | psc-kernel | 0 | 1 | `patches/0002-sdl-pad-input.patch` and the 2020 `config.cfg` |
+| tyrquake | psc-kernel | 0 | 1 | the 2020 mapping as an SDL game controller (`patches/0002-sdl-gamecontroller.patch`, `files/config.cfg`, `files/gamecontrollerdb.txt`): d-pad up/down walk, left/right turn (pad choice X, a pad with only a d-pad) or strafe (O, analog sticks; the left stick walks and strafes, the right stick turns and looks), Cross centre view, Square look down, Triangle look up, Circle strafe, Select free look, Start the menu, L1/R1 previous/next weapon, L2 jump, R2 fire |
 
 ### Where the source goes
 

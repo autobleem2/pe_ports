@@ -11,7 +11,8 @@ port_build() {
     cp "$SRC/bin/tyr-quake" "$STAGE/tyr-quake"
     "$STRIP" "$STAGE/tyr-quake"
     cp -a "$PORT_DIR/data/." "$STAGE/"
-    # our own start-up settings: the console pad on the keys the engine reads (files/)
+    # our own start-up settings: the console pad as an SDL game controller (the 2020 mapping), its database and the pad choice picture (files/)
     mkdir -p "$STAGE/.tyrquake/id1"
     cp "$PORT_DIR/files/config.cfg" "$PORT_DIR/files/video.cfg" "$STAGE/.tyrquake/id1/"
+    cp "$PORT_DIR/files/gamecontrollerdb.txt" "$PORT_DIR/files/quake_controller_select.png" "$STAGE/"
 }

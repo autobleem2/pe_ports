@@ -1,0 +1,1005 @@
+diff --git a/common/in_sdl.c b/common/in_sdl.c
+index 8be6bdb..06e957a 100644
+--- a/common/in_sdl.c
++++ b/common/in_sdl.c
+@@ -1,5 +1,6 @@
+ /*
+ Copyright (C) 1996-1997 Id Software, Inc.
++Copyright (C) 2020 CompCom & Id Software, Inc.: Added SDL Game Controller support using modified in_win.c code
+ 
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU General Public License
+@@ -39,6 +40,32 @@ cvar_t in_snd_block = { "in_snd_block", "0" };
+ static qboolean mouse_available;
+ static int mouse_x, mouse_y;
+ 
++static cvar_t in_joystick = { "joystick", "0", CVAR_CONFIG };
++static cvar_t joy_name = { "joyname", "joystick" };
++static cvar_t joy_forwardthreshold = { "joyforwardthreshold", "0.15" };
++static cvar_t joy_sidethreshold = { "joysidethreshold", "0.15" };
++static cvar_t joy_pitchthreshold = { "joypitchthreshold", "0.15" };
++static cvar_t joy_yawthreshold = { "joyyawthreshold", "0.15" };
++static cvar_t joy_forwardsensitivity = { "joyforwardsensitivity", "-1.0" };
++static cvar_t joy_sidesensitivity = { "joysidesensitivity", "1.0" };
++static cvar_t joy_pitchsensitivity = { "joypitchsensitivity", "1.0" };
++static cvar_t joy_yawsensitivity = { "joyyawsensitivity", "-1.0" };
++
++enum _ControlList {
++    AxisNada = 0, AxisForward, AxisLook, AxisSide, AxisTurn
++};
++
++extern double host_frametime;
++
++#define TRIGGER_DEADZONE 32768/2
++static SDL_GameController* gamecontroller = NULL;
++static qboolean gamecontroller_available = false;
++static uint32_t gamecontroller_buttonstate = 0;
++
++static void IN_StartGameController(void);
++static void IN_CloseGameController(void);
++static void IN_ControllerMove(usercmd_t *cmd);
++
+ static int have_focus = 0;
+ 
+ static void
+@@ -576,7 +603,24 @@ IN_SDL_HandleEvent(SDL_Event *event)
+ 	    }
+ 	    break;
+ 
+-	default:
++    case SDL_CONTROLLERDEVICEREMOVED:
++        Sys_Printf("[SDL2 GAMEPAD] CONTROLLER REMOVED\n");
++        // If Current Controller removed close controller ptr and attempt to open new controller ptr
++        if(SDL_GameControllerFromInstanceID(event->cdevice.which) == gamecontroller)
++        {
++            IN_CloseGameController();
++            IN_StartGameController();
++        }
++        break;
++    case SDL_CONTROLLERDEVICEADDED:
++        Sys_Printf("[SDL2 GAMEPAD] CONTROLLER ADDED\n");
++        IN_StartGameController();
++        break;
++    case SDL_CONTROLLERBUTTONDOWN:
++        key_lastpress = K_GCA + event->cbutton.button;
++        break;
++
++    default:
+ 	    break;
+     }
+ }
+@@ -635,6 +679,8 @@ IN_MouseMove(usercmd_t *cmd)
+ void
+ IN_Init(void)
+ {
++    int gamecontrollerdb = COM_CheckParm("-gamecontrollerdb");
++
+     Q_SDL_InitOnce();
+ #if 0
+     SDL_EnableUNICODE(1); // Enable UNICODE translation for keyboard input
+@@ -642,10 +688,38 @@ IN_Init(void)
+ 
+     mouse_x = mouse_y = 0.0;
+     mouse_available = !COM_CheckParm("-nomouse");
++    gamecontroller_available = !COM_CheckParm("-nojoy");
+ 
+     Cvar_RegisterVariable(&in_snd_block);
+     Cvar_RegisterVariable(&m_filter);
+     Cvar_RegisterVariable(&_windowed_mouse);
++
++    // joystick variables
++    Cvar_RegisterVariable(&in_joystick);
++    Cvar_RegisterVariable(&joy_name);
++    Cvar_RegisterVariable(&joy_forwardthreshold);
++    Cvar_RegisterVariable(&joy_sidethreshold);
++    Cvar_RegisterVariable(&joy_pitchthreshold);
++    Cvar_RegisterVariable(&joy_yawthreshold);
++    Cvar_RegisterVariable(&joy_forwardsensitivity);
++    Cvar_RegisterVariable(&joy_sidesensitivity);
++    Cvar_RegisterVariable(&joy_pitchsensitivity);
++    Cvar_RegisterVariable(&joy_yawsensitivity);
++
++    if(gamecontrollerdb && ++gamecontrollerdb < com_argc)
++    {
++        const char * gamecontrollerdbpath = com_argv[gamecontrollerdb];
++        if(SDL_GameControllerAddMappingsFromFile(gamecontrollerdbpath) < 0)
++            Sys_Error("IN: Couldn't load SDL Controller Mappings: %s", SDL_GetError());
++        else
++            Con_Printf("Successfully loaded SDL GameController DB %s\n", gamecontrollerdbpath);
++    }
++
++    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,"1");
++    if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) < 0)
++        Sys_Error("IN: Couldn't load SDL: %s", SDL_GetError());
++
++    IN_StartGameController();
+ }
+ 
+ void
+@@ -653,6 +727,7 @@ IN_Shutdown(void)
+ {
+     IN_UngrabMouse();
+     mouse_available = 0;
++    IN_CloseGameController();
+ }
+ 
+ /* Possibly don't need these? */
+@@ -661,11 +736,14 @@ void IN_UpdateClipCursor(void) { }
+ void IN_Move(usercmd_t *cmd)
+ {
+     IN_MouseMove(cmd);
+-    //IN_JoyMove(cmd);
++    IN_ControllerMove(cmd);
+ }
+ 
+ void IN_Commands(void)
+ {
++    int i;
++    uint32_t newbuttonstate = 0;
++
+     if (mouse_available) {
+ 	SDL_bool mouse_grabbed = SDL_GetRelativeMouseMode();
+ 	if (mouse_grabbed) {
+@@ -676,4 +754,192 @@ void IN_Commands(void)
+ 		IN_GrabMouse();
+ 	}
+     }
++
++    if(!gamecontroller_available)
++        return;
++
++    // Loop through controller buttons generating key press events
++    for(i = 0; i < SDL_CONTROLLER_BUTTON_MAX; ++i)
++    {
++        const int button_bit = 1 << i;
++        const int key_code = K_GCA + i;
++        if(SDL_GameControllerGetButton(gamecontroller, (SDL_GameControllerButton)i))
++        {
++            // Check old state
++            if((gamecontroller_buttonstate & button_bit) == 0)
++                Key_Event(key_code, true);
++            newbuttonstate |= button_bit;
++        }
++        else if(gamecontroller_buttonstate & button_bit)
++        {
++            Key_Event(key_code, false);
++        }
++    }
++
++    // Loop through controller triggers generating key press events
++    for(i = 0; i < 2; ++i)
++    {
++        const int button_bit = 1 << (SDL_CONTROLLER_BUTTON_MAX + i);
++        const int key_code = K_GCA + SDL_CONTROLLER_BUTTON_MAX + i;
++        if(SDL_GameControllerGetAxis(gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT+i) >= TRIGGER_DEADZONE)
++        {
++            if((gamecontroller_buttonstate & button_bit) == 0)
++                Key_Event(key_code, true);
++            newbuttonstate |= button_bit;
++        }
++        else if(gamecontroller_buttonstate & button_bit)
++        {
++            Key_Event(key_code, false);
++        }
++    }
++    
++    gamecontroller_buttonstate = newbuttonstate;
++}
++
++/*
++===========
++IN_ControllerMove (modified IN_JoyMove (in_win.c))
++===========
++*/
++static void
++IN_ControllerMove(usercmd_t *cmd)
++{
++    int dwAxisMap[4] = { AxisSide, AxisForward, AxisTurn, AxisLook };
++    float speed, aspeed;
++    float fAxisValue;
++    int i;
++
++    // verify joystick is available and that the user wants to use it
++    if (!gamecontroller_available || !gamecontroller) {
++	return;
++    }
++
++    if ((in_speed.state & 1) ^ (int)cl_run.value)
++	speed = cl_movespeedkey.value;
++    else
++	speed = 1;
++    aspeed = speed * host_frametime;
++
++    // loop through the axes
++    for (i = 0; i < SDL_CONTROLLER_AXIS_TRIGGERLEFT; i++) {
++	// get the floating point zero-centered, potentially-inverted data for the current axis
++	fAxisValue = SDL_GameControllerGetAxis(gamecontroller, (SDL_GameControllerAxis)i);
++
++	// convert range from -32768..32767 to -1..1
++	fAxisValue /= 32768.0;
++
++	switch (dwAxisMap[i]) {
++	case AxisForward:
++	    if (((in_mlook.state & 1) ^ (int)m_freelook.value)) {
++		// user wants forward control to become look control
++		if (fabsf(fAxisValue) > joy_pitchthreshold.value) {
++		    // if mouse invert is on, invert the joystick pitch value
++		    // only absolute control support here (joy_advanced is false)
++		    if (m_pitch.value < 0.0) {
++			cl.viewangles[PITCH] -=
++			    (fAxisValue * joy_pitchsensitivity.value) *
++			    aspeed * cl_pitchspeed.value;
++		    } else {
++			cl.viewangles[PITCH] +=
++			    (fAxisValue * joy_pitchsensitivity.value) *
++			    aspeed * cl_pitchspeed.value;
++		    }
++		    V_StopPitchDrift();
++		}
++	    } else {
++		// user wants forward control to be forward control
++		if (fabsf(fAxisValue) > joy_forwardthreshold.value) {
++		    cmd->forwardmove +=
++			(fAxisValue * joy_forwardsensitivity.value) * speed *
++			cl_forwardspeed.value;
++		}
++	    }
++	    break;
++
++	case AxisSide:
++	    if (fabsf(fAxisValue) > joy_sidethreshold.value) {
++		cmd->sidemove +=
++		    (fAxisValue * joy_sidesensitivity.value) * speed *
++		    cl_sidespeed.value;
++	    }
++	    break;
++
++	case AxisTurn:
++	    if ((in_strafe.state & 1)
++		|| (lookstrafe.value && ((in_mlook.state & 1) ^ (int)m_freelook.value))) {
++		// user wants turn control to become side control
++		if (fabsf(fAxisValue) > joy_sidethreshold.value) {
++		    cmd->sidemove -=
++			(fAxisValue * joy_sidesensitivity.value) * speed *
++			cl_sidespeed.value;
++		}
++	    } else {
++		// user wants turn control to be turn control
++		if (fabsf(fAxisValue) > joy_yawthreshold.value) {
++            cl.viewangles[YAW] +=
++                (fAxisValue * joy_yawsensitivity.value) * aspeed *
++                cl_yawspeed.value;
++
++		}
++	    }
++	    break;
++
++	case AxisLook:
++		if (fabsf(fAxisValue) > joy_pitchthreshold.value) {
++		    // pitch movement detected and pitch movement desired by user
++			cl.viewangles[PITCH] +=
++			    (fAxisValue * joy_pitchsensitivity.value) *
++			    aspeed * cl_pitchspeed.value;
++		    V_StopPitchDrift();
++		}
++	    break;
++
++	default:
++	    break;
++	}
++    }
++
++    // bounds check pitch
++    if (cl.viewangles[PITCH] > 80.0)
++	cl.viewangles[PITCH] = 80.0;
++    if (cl.viewangles[PITCH] < -70.0)
++	cl.viewangles[PITCH] = -70.0;
++}
++
++static void
++IN_StartGameController(void)
++{
++    int i;
++
++    if(!gamecontroller_available || gamecontroller)
++        return;
++
++    Sys_Printf("[SDL2 GAMEPAD] Number of Joysticks: %d\n",SDL_NumJoysticks());
++
++    for(i = 0; i < SDL_NumJoysticks(); ++i)
++    {
++        Sys_Printf("[SDL2 GAMEPAD] Joystick: %s, Is a game controller = %d\n",SDL_JoystickNameForIndex(i),SDL_IsGameController(i));
++        if(SDL_IsGameController(i))
++        {
++            gamecontroller = SDL_GameControllerOpen(i);
++            if(gamecontroller) {
++                Sys_Printf("[SDL2 GAMEPAD] Connected controller %s\n",SDL_GameControllerNameForIndex(i));
++                break;
++            }
++            else
++                Sys_Printf("[SDL2 GAMEPAD](ERROR) Could not enable Controller %s: %s\n", SDL_GameControllerNameForIndex(i), SDL_GetError());
++        }
++    }
++
++    gamecontroller_buttonstate = 0;
++}
++
++static void
++IN_CloseGameController(void)
++{
++    if(gamecontroller)
++    {
++        SDL_GameControllerClose(gamecontroller);
++        gamecontroller = NULL;
++    }
+ }
+diff --git a/common/keys.c b/common/keys.c
+index 4d1521e..ee255d2 100644
+--- a/common/keys.c
++++ b/common/keys.c
+@@ -148,6 +148,25 @@ static const keyname_t keynames[] = {
+     {"AUX31", K_AUX31},
+     {"AUX32", K_AUX32},
+ 
++
++    {"GCA", K_GCA},
++    {"GBC", K_GCB},
++    {"GCX", K_GCX},
++    {"GXY", K_GCY},
++    {"GCBACK", K_GCBACK},
++    {"GCGUIDE", K_GCGUIDE},
++    {"GCSTART", K_GCSTART},
++    {"GCLEFTSTICK", K_GCLEFTSTICK},
++    {"GCRIGHTSTICK", K_GCRIGHTSTICK},
++    {"GCLEFTSHOULDER", K_GCLEFTSHOULDER},
++    {"GCRIGHTSHOULDER", K_GCRIGHTSHOULDER},
++    {"GCUP", K_GCUP},
++    {"GCDOWN", K_GCDOWN},
++    {"GCLEFT", K_GCLEFT},
++    {"GCRIGHT", K_GCRIGHT},
++    {"GCLEFTTRIGGER", K_GCLEFTTRIGGER},
++    {"GCRIGHTTRIGGER", K_GCRIGHTTRIGGER},
++
+     {"PAUSE", K_PAUSE},
+ 
+     {"SHIFT", K_SHIFT},
+diff --git a/common/menu.c b/common/menu.c
+index 9d49fa7..78d9f55 100644
+--- a/common/menu.c
++++ b/common/menu.c
+@@ -311,6 +311,8 @@ M_Main_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	key_dest = key_game;
+ 	m_state = m_none;
+ 	cls.demonum = m_save_demonum;
+@@ -327,18 +329,23 @@ M_Main_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (++m_main_cursor >= M_MAIN_CURSOR_LINES)
+ 	    m_main_cursor = 0;
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (m_main_cursor-- == 0)
+ 	    m_main_cursor = M_MAIN_CURSOR_LINES - 1;
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	m_entersound = true;
+ 
+ 	switch (m_main_cursor) {
+@@ -570,10 +577,13 @@ M_Options_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_Main_f();
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	m_entersound = true;
+ 	switch (m_options_cursor) {
+ 	case M_OPTIONS_CURSOR_CONTROLS:
+@@ -596,22 +606,28 @@ M_Options_Key(knum_t keynum)
+ 	return;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (m_options_cursor-- == 0)
+ 	    m_options_cursor = M_OPTIONS_CURSOR_LINES - 1;
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	m_options_cursor++;
+ 	m_options_cursor %= M_OPTIONS_CURSOR_LINES;
+ 	break;
+ 
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	M_AdjustSliders(-1);
+ 	break;
+ 
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	M_AdjustSliders(1);
+ 	break;
+ 
+@@ -783,21 +799,30 @@ M_Keys_Key(knum_t keynum)
+ 
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_Options_f();
+ 	break;
+     case K_LEFTARROW:
++    case K_GCLEFT:
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (m_keys_cursor-- == 0)
+ 	    m_keys_cursor = M_KEYS_CURSOR_LINES - 1;
+ 	break;
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	m_keys_cursor++;
+ 	m_keys_cursor %= M_KEYS_CURSOR_LINES;
+ 	break;
+     case K_ENTER:
++    case K_GCA:
+ 	/* go into bind mode */
+ 	M_FindKeysForCommand(m_keys_cursor, keys);
+ 	S_LocalSound("misc/menu2.wav");
+@@ -807,6 +832,7 @@ M_Keys_Key(knum_t keynum)
+ 	break;
+     case K_BACKSPACE:
+     case K_DEL:
++    case K_GCX:
+ 	/* delete bindings */
+ 	S_LocalSound("misc/menu2.wav");
+ 	M_UnbindCommand(m_keys_cursor);
+@@ -907,6 +933,8 @@ M_Quit_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+     case K_n:
+ 	/* If we were previously in-game, return the key focus */
+ 	if (m_quit_prevstate == m_none)
+@@ -917,6 +945,7 @@ M_Quit_Key(knum_t keynum)
+ 	break;
+ 
+     case K_y:
++    case K_GCA:
+ 	key_dest = key_console;
+ #ifdef NQ_HACK
+ 	Host_Quit_f();
+@@ -1181,22 +1210,29 @@ M_SinglePlayer_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_Main_f();
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (++m_singleplayer_cursor >= SINGLEPLAYER_ITEMS)
+ 	    m_singleplayer_cursor = 0;
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (--m_singleplayer_cursor < 0)
+ 	    m_singleplayer_cursor = SINGLEPLAYER_ITEMS - 1;
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	m_entersound = true;
+ 
+ 	switch (m_singleplayer_cursor) {
+@@ -1323,10 +1359,13 @@ M_Load_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_SinglePlayer_f();
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	S_LocalSound("misc/menu2.wav");
+ 	if (!loadable[load_cursor])
+ 	    return;
+@@ -1342,7 +1381,10 @@ M_Load_Key(knum_t keynum)
+ 	return;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	load_cursor--;
+ 	if (load_cursor < 0)
+@@ -1350,7 +1392,10 @@ M_Load_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	load_cursor++;
+ 	if (load_cursor >= MAX_SAVEGAMES)
+@@ -1368,17 +1413,23 @@ M_Save_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_SinglePlayer_f();
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	m_state = m_none;
+ 	key_dest = key_game;
+ 	Cbuf_AddText("save s%i\n", load_cursor);
+ 	return;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	load_cursor--;
+ 	if (load_cursor < 0)
+@@ -1386,7 +1437,10 @@ M_Save_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	load_cursor++;
+ 	if (load_cursor >= MAX_SAVEGAMES)
+@@ -1442,22 +1496,29 @@ M_MultiPlayer_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_Main_f();
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (++m_multiplayer_cursor >= MULTIPLAYER_ITEMS)
+ 	    m_multiplayer_cursor = 0;
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (--m_multiplayer_cursor < 0)
+ 	    m_multiplayer_cursor = MULTIPLAYER_ITEMS - 1;
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	m_entersound = true;
+ 	switch (m_multiplayer_cursor) {
+ 	case 0:
+@@ -1557,10 +1618,14 @@ M_Setup_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_MultiPlayer_f();
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	setup_cursor--;
+ 	if (setup_cursor < 0)
+@@ -1568,6 +1633,8 @@ M_Setup_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	setup_cursor++;
+ 	if (setup_cursor >= NUM_SETUP_CMDS)
+@@ -1575,6 +1642,7 @@ M_Setup_Key(knum_t keynum)
+ 	break;
+ 
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	if (setup_cursor < 2)
+ 	    return;
+ 	S_LocalSound("misc/menu3.wav");
+@@ -1584,6 +1652,7 @@ M_Setup_Key(knum_t keynum)
+ 	    setup_bottom = setup_bottom - 1;
+ 	break;
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	if (setup_cursor < 2)
+ 	    return;
+       forward:
+@@ -1595,6 +1664,7 @@ M_Setup_Key(knum_t keynum)
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	if (setup_cursor == 0 || setup_cursor == 1)
+ 	    return;
+ 
+@@ -1613,6 +1683,7 @@ M_Setup_Key(knum_t keynum)
+ 	break;
+ 
+     case K_BACKSPACE:
++    case K_GCX:
+ 	if (setup_cursor == 0) {
+ 	    if (strlen(setup_hostname))
+ 		setup_hostname[strlen(setup_hostname) - 1] = 0;
+@@ -1680,18 +1751,26 @@ M_Help_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_Main_f();
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	m_entersound = true;
+ 	if (++help_page >= NUM_HELP_PAGES)
+ 	    help_page = 0;
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	m_entersound = true;
+ 	if (--help_page < 0)
+ 	    help_page = NUM_HELP_PAGES - 1;
+@@ -1805,10 +1884,14 @@ M_LanConfig_Key(knum_t keynum)
+ 
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_MultiPlayer_f();
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	lanConfig_cursor--;
+ 	if (lanConfig_cursor < 0)
+@@ -1816,6 +1899,8 @@ M_LanConfig_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	lanConfig_cursor++;
+ 	if (lanConfig_cursor >= NUM_LANCONFIG_CMDS)
+@@ -1823,6 +1908,7 @@ M_LanConfig_Key(knum_t keynum)
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	if (lanConfig_cursor == 0)
+ 	    break;
+ 
+@@ -1851,6 +1937,7 @@ M_LanConfig_Key(knum_t keynum)
+ 	break;
+ 
+     case K_BACKSPACE:
++    case K_GCX:
+ 	if (lanConfig_cursor == 0) {
+ 	    if (strlen(lanConfig_portname))
+ 		lanConfig_portname[strlen(lanConfig_portname) - 1] = 0;
+@@ -1886,7 +1973,7 @@ M_LanConfig_Key(knum_t keynum)
+     }
+ 
+     if (StartingGame && lanConfig_cursor == 2) {
+-	if (keynum == K_UPARROW)
++	if (keynum == K_UPARROW || keynum == K_GCUP)
+ 	    lanConfig_cursor = 1;
+ 	else
+ 	    lanConfig_cursor = 0;
+@@ -2309,10 +2396,14 @@ M_GameOptions_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_MultiPlayer_f();
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	gameoptions_cursor--;
+ 	if (gameoptions_cursor < 0)
+@@ -2320,6 +2411,8 @@ M_GameOptions_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	gameoptions_cursor++;
+ 	if (gameoptions_cursor >= NUM_GAMEOPTIONS)
+@@ -2327,6 +2420,7 @@ M_GameOptions_Key(knum_t keynum)
+ 	break;
+ 
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	if (gameoptions_cursor == 0)
+ 	    break;
+ 	S_LocalSound("misc/menu3.wav");
+@@ -2334,6 +2428,7 @@ M_GameOptions_Key(knum_t keynum)
+ 	break;
+ 
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	if (gameoptions_cursor == 0)
+ 	    break;
+ 	S_LocalSound("misc/menu3.wav");
+@@ -2341,6 +2436,7 @@ M_GameOptions_Key(knum_t keynum)
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	S_LocalSound("misc/menu2.wav");
+ 	if (gameoptions_cursor == 0) {
+ 	    if (sv.active)
+@@ -2497,6 +2593,8 @@ M_ServerList_Key(knum_t keynum)
+ {
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	M_Menu_LanConfig_f();
+ 	break;
+ 
+@@ -2505,7 +2603,10 @@ M_ServerList_Key(knum_t keynum)
+ 	break;
+ 
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	slist_cursor--;
+ 	if (slist_cursor < 0)
+@@ -2513,7 +2614,10 @@ M_ServerList_Key(knum_t keynum)
+ 	break;
+ 
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	S_LocalSound("misc/menu1.wav");
+ 	slist_cursor++;
+ 	if (slist_cursor >= hostCacheCount)
+@@ -2521,6 +2625,7 @@ M_ServerList_Key(knum_t keynum)
+ 	break;
+ 
+     case K_ENTER:
++    case K_GCA:
+ 	S_LocalSound("misc/menu2.wav");
+ 	m_return_state = m_state;
+ 	m_return_onerror = true;
+diff --git a/common/screen.c b/common/screen.c
+index 8d308b2..ad3e91e 100644
+--- a/common/screen.c
++++ b/common/screen.c
+@@ -586,6 +586,9 @@ SCR_ModalMessage(const char *text)
+ 	return true;
+ #endif
+ 
++    // Change last key to prevent automatic accept by game controller
++    key_lastpress = 0;
++
+     scr_notifystring = text;
+ 
+ // draw a fresh screen
+@@ -601,12 +604,13 @@ SCR_ModalMessage(const char *text)
+ 	Sys_SendKeyEvents();
+ 	Sys_Sleep();
+     } while (key_lastpress != 'y' && key_lastpress != 'n'
+-	     && key_lastpress != K_ESCAPE);
++	     && key_lastpress != K_ESCAPE && key_lastpress != K_GCA
++	     && key_lastpress != K_GCB);
+ 
+     scr_fullupdate = 0;
+     SCR_UpdateScreen();
+ 
+-    return key_lastpress == 'y';
++    return key_lastpress == 'y' || key_lastpress == K_GCA;
+ }
+ 
+ //============================================================================
+diff --git a/common/vid_mode.c b/common/vid_mode.c
+index d6103d8..fe9119b 100644
+--- a/common/vid_mode.c
++++ b/common/vid_mode.c
+@@ -534,6 +534,8 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 
+     switch (keynum) {
+     case K_ESCAPE:
++    case K_GCSTART:
++    case K_GCB:
+ 	S_LocalSound("misc/menu1.wav");
+         if (menu->configure_window) {
+             VID_Menu_ExitConfigureWindow(menu);
+@@ -542,6 +544,8 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+         }
+ 	break;
+     case K_UPARROW:
++    case K_GCUP:
++    case K_GCRIGHTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (menu->cursor == VID_MENU_CURSOR_RESOLUTION)
+ 	    menu->cursor = VID_MENU_CURSOR_LINES - 1;
+@@ -553,6 +557,8 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 	    menu->cursor--;
+ 	break;
+     case K_DOWNARROW:
++    case K_GCDOWN:
++    case K_GCLEFTTRIGGER:
+ 	S_LocalSound("misc/menu1.wav");
+ 	if (menu->cursor == VID_MENU_CURSOR_LINES - 1)
+ 	    menu->cursor = VID_MENU_CURSOR_RESOLUTION;
+@@ -564,6 +570,7 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 	    menu->cursor++;
+ 	break;
+     case K_LEFTARROW:
++    case K_GCLEFT:
+ 	S_LocalSound("misc/menu3.wav");
+         if (!vid_nummodes)
+             break;
+@@ -600,6 +607,7 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 	}
+ 	break;
+     case K_RIGHTARROW:
++    case K_GCRIGHT:
+ 	S_LocalSound("misc/menu3.wav");
+         if (!vid_nummodes)
+             break;
+@@ -634,6 +642,7 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 	}
+ 	break;
+     case K_ENTER:
++    case K_GCA:
+ 	S_LocalSound("misc/menu1.wav");
+         if (menu->configure_window) {
+             VID_Menu_ExitConfigureWindow(menu);
+@@ -674,6 +683,7 @@ VID_MenuKey_(vid_menustate_t *menu, knum_t keynum)
+ 	}
+         break;
+     case K_BACKSPACE:
++    case K_GCY:
+         if (menu->cursor == VID_MENU_CURSOR_WIDTH) {
+             if (menu->mode.width) {
+                 qsnprintf(string, sizeof(string), "%d", menu->mode.width);
+diff --git a/common/vid_sdl.c b/common/vid_sdl.c
+index 3cf332b..de3f8cc 100644
+--- a/common/vid_sdl.c
++++ b/common/vid_sdl.c
+@@ -345,6 +345,9 @@ VID_ProcessEvents()
+             case SDL_MOUSEBUTTONUP:
+             case SDL_MOUSEWHEEL:
+             case SDL_MOUSEMOTION:
++            case SDL_CONTROLLERDEVICEADDED:
++            case SDL_CONTROLLERDEVICEREMOVED:
++            case SDL_CONTROLLERBUTTONDOWN:
+                 IN_SDL_HandleEvent(&event);
+                 break;
+             case SDL_QUIT:
+diff --git a/common/vid_sgl.c b/common/vid_sgl.c
+index 5671190..cddea7f 100644
+--- a/common/vid_sgl.c
++++ b/common/vid_sgl.c
+@@ -196,6 +196,9 @@ VID_ProcessEvents()
+             case SDL_MOUSEBUTTONUP:
+             case SDL_MOUSEWHEEL:
+             case SDL_MOUSEMOTION:
++            case SDL_CONTROLLERDEVICEADDED:
++            case SDL_CONTROLLERDEVICEREMOVED:
++            case SDL_CONTROLLERBUTTONDOWN:
+                 IN_SDL_HandleEvent(&event);
+                 break;
+             case SDL_QUIT:
+diff --git a/include/keys.h b/include/keys.h
+index b09dc70..0fd2ed1 100644
+--- a/include/keys.h
++++ b/include/keys.h
+@@ -252,6 +252,28 @@ typedef enum {
+     K_AUX30,
+     K_AUX31,
+     K_AUX32,
++
++    /*
++     * Game Controller keys for SDL Game Controllers this allows controllers
++     * to navigate menus without clashing with joystick buttons
++     */
++    K_GCA,
++    K_GCB,
++    K_GCX,
++    K_GCY,
++    K_GCBACK,
++    K_GCGUIDE,
++    K_GCSTART,
++    K_GCLEFTSTICK,
++    K_GCRIGHTSTICK,
++    K_GCLEFTSHOULDER,
++    K_GCRIGHTSHOULDER,
++    K_GCUP,
++    K_GCDOWN,
++    K_GCLEFT,
++    K_GCRIGHT,
++    K_GCLEFTTRIGGER,
++    K_GCRIGHTTRIGGER,
+     K_LAST
+ } knum_t;
+ 
