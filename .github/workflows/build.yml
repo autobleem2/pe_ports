@@ -77,3 +77,40 @@ jobs:
       - uses: autobleem2/autobleem-build/.github/actions/nightly-release@develop
         with:
           files: out/*
+
+  # the GPL source mirror: a release's source archives go to the download site's source/<id>/ (the address each
+  # package's SOURCE.txt names), where they stay at least 3 years after the item's last release. On the psc-build
+  # runner, where the site's tree is, in the build image: the way ext_store's `site` job publishes. The publish tools
+  # come from autobleem-repo's develop (its page generator is three-way merged with the site's copy).
+  site:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: [self-hosted, psc-build]
+    env:
+      AB_REPO_DIR: /home/claude/autobleem-repo
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: autobleem2/autobleem-repo
+          ref: develop
+          path: autobleem-repo-tools
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          path: pe-ports # only ports/*/ is read, for the ids
+      - uses: actions/download-artifact@v8
+        with: { name: pe-ports-packages, path: out }
+      - name: Publish the source archives to the download site
+        run: |
+          set -euo pipefail
+          ls -l out
+          for d in pe-ports/ports/*/; do
+            id=$(basename "$d")
+            set -- "$PWD"/out/"$id"-*-source.tar.gz
+            [ -f "$1" ] || { echo "no source archive for $id in this release" >&2; exit 1; }
+            docker run --rm \
+              -v "$PWD:$PWD" -w "$PWD/autobleem-repo-tools" -v "$AB_REPO_DIR:$AB_REPO_DIR" -e REPO_DIR="$AB_REPO_DIR" \
+              -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+              ghcr.io/autobleem2/autobleem-build:latest \
+              bash tools/repo_publish.sh --local pe-source "$id" "$@"
+          done

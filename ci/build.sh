@@ -42,18 +42,31 @@ export PATH="$PSC/sdl2/bin:$PATH"
 
 banner() { printf '\n==== %s ====\n' "$*"; }
 
-# fetch <url> <sha256> <file>: a build dependency that is not in git, into build_data/ (kept between builds),
-# checked against the pinned sha256
+# fetch <url> <sha256> <file> [<fallback url>...]: a build dependency that is not in git, into build_data/ (kept
+# between builds), checked against the pinned sha256. The urls are tried in turn; a download that does not match the
+# sha256 counts as a failed one, so a wrong or half-uploaded mirror file falls through to the next url.
 fetch() {
-    local url="$1" sha="$2" file="$ROOT/build_data/$3"
+    local sha="$2" file="$ROOT/build_data/$3" url
     mkdir -p "$ROOT/build_data"
     if [ ! -f "$file" ] || ! echo "$sha  $file" | sha256sum -c --status; then
-        curl -fL --retry 3 -o "$file.part" "$url"
-        mv "$file.part" "$file"
+        for url in "$1" "${@:4}"; do
+            echo "fetch: $url"
+            rm -f "$file.part"
+            if curl -fL --retry 3 -o "$file.part" "$url" && echo "$sha  $file.part" | sha256sum -c --status; then
+                mv "$file.part" "$file"
+                break
+            fi
+            rm -f "$file.part"
+            echo "fetch: $url failed or does not match the pinned sha256" >&2
+        done
     fi
     echo "$sha  $file" | sha256sum -c
 }
 export -f fetch
+
+# build dependencies that are not in git are mirrored on our own site (deps/<name>/, published with
+# tools/repo_publish.sh deps of autobleem-repo) and fetched from there first, the upstream address being the fallback
+export AB_DEPS_BASE="${AB_DEPS_BASE:-https://autobleem.retromenele.pl/deps}"
 
 # check_binary <file>...: it must be an ARM hard-float ELF the console can load, and need nothing but the console's
 # own libraries, the SDL2 family or what the mod brings (a mod's libraries sit next to its program)

@@ -1,10 +1,12 @@
 # Commander Genius 2.4.0: CMake, SDL2 renderer (no OpenGL, so no libGL), the launcher's shared SDL2 family.
 # Sourced by ci/build.sh with $SRC (the upstream), $STAGE (the launcher folder's files), $PORT_DIR, fetch().
 port_build() {
-    # Boost's property_tree headers (header-only; the image has no Boost): the release tarball, pinned
+    # Boost's property_tree headers (header-only; the image has no Boost): the release tarball, pinned, from our
+    # site's mirror (deps/boost/) with the upstream address as the fallback
     local boost=boost_1_74_0
-    fetch "https://archives.boost.io/release/1.74.0/source/$boost.tar.bz2" \
-        83bfc1507731a0906e387fc28b7ef5417d591429e51e788417fe9ff025e116b1 "$boost.tar.bz2"
+    fetch "$AB_DEPS_BASE/boost/$boost.tar.bz2" \
+        83bfc1507731a0906e387fc28b7ef5417d591429e51e788417fe9ff025e116b1 "$boost.tar.bz2" \
+        "https://archives.boost.io/release/1.74.0/source/$boost.tar.bz2"
     mkdir -p "$BUILD_DIR/boost"
     tar -xjf "$ROOT/build_data/$boost.tar.bz2" -C "$BUILD_DIR/boost" "$boost/boost"
     export PE_EXTRA_ROOT="$BUILD_DIR/boost/$boost"
