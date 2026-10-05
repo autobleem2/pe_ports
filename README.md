@@ -73,8 +73,13 @@ The pad flags are **not** in the package; the launcher reads them from its `rc/p
 | port | PadMode | Dpad2Analog | Analog2Dpad |
 |---|---|---|---|
 | openlara | psc-kernel | 0 | 1 |
-| commanderkeen | psc-kernel | 0 | 1 |
-| openjazz | psc-kernel | 0 | 1 |
+| commanderkeen | x360-kernel | 1 | 1 |
+| openjazz | x360-kernel | 0 | 1 |
+
+An SDL game that reads the joystick by numbers expects the SDL default (Xbox 360) layout - button 0 is the main
+button - so `x360-kernel` is the mode for such a port: the console's Cross is button 0, Circle 1, Square 2, Triangle 3,
+L1/R1 4/5, Select 6, Start 7, the d-pad hat 0. `psc-kernel` stays for a port written against the console pad's own
+numbers (tyrquake's patch, OpenLara's evdev codes).
 | tyrquake | psc-kernel | 0 | 1 |
 
 ### Where the source goes
