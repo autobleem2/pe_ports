@@ -170,7 +170,21 @@ def file_mode(path):
 # the source archive
 # ---------------------------------------------------------------------------------------------------------
 def add_git_tree(out_tar, repo, prefix, mtime, excludes):
-    """git archive HEAD of `repo` (and of its submodules, recursively) into out_tar under `prefix`."""
+    """git archive HEAD of `repo` (and of its submodules, recursively) into out_tar under `prefix`. A tree with no
+    .git (this repository rebuilt from a source archive) is added as it is."""
+    if not os.path.exists(os.path.join(repo, ".git")):
+        for base, dirs, names in os.walk(repo):
+            dirs.sort()
+            rel = os.path.relpath(base, repo).replace(os.sep, "/")
+            if rel != "." and rel.split("/")[0] in excludes:
+                dirs[:] = []
+                continue
+            for n in sorted(names):
+                top = n if rel == "." else rel.split("/")[0]
+                if top in excludes:
+                    continue
+                add_file(out_tar, os.path.join(base, n), prefix + "/" + (n if rel == "." else rel + "/" + n), mtime)
+        return
     data = run("git", "-c", "safe.directory=*", "-C", repo, "archive", "--format=tar", "HEAD")
     with tarfile.open(fileobj=io.BytesIO(data)) as src:
         for m in src:

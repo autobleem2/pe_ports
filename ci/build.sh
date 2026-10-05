@@ -62,8 +62,10 @@ check_binary() {
     for f in "$@"; do
         file "$f" | grep -q 'ELF 32-bit LSB.*ARM'
         bash /opt/ab/tools/check_psc_binary.sh "$f" "$PSC"
-        local lib
-        for lib in $("$PSC/bin/armv8-sony-linux-gnueabihf-readelf" -d "$f" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p'); do
+        local lib needed
+        needed=$("$PSC/bin/armv8-sony-linux-gnueabihf-readelf" -d "$f" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
+        echo "    needs: $(echo $needed)"
+        for lib in $needed; do
             if echo "$lib" | grep -qE "$PE_ALLOWED_LIBS"; then continue; fi
             if [ -f "$(dirname "$f")/$lib" ]; then continue; fi
             echo "    ERROR: $(basename "$f") needs $lib, which is neither the console's, SDL2 nor shipped with the mod" >&2
