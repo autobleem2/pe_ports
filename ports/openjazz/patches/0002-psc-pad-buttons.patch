@@ -7,20 +7,20 @@ index a7e4808..7a978b3 100644
      #define DEFAULT_BUTTON_YES          (-1)
      #define DEFAULT_BUTTON_NO           (-1)
 +#elif defined(AB_PSC)
-+    /* the PlayStation Classic's pad as AutoBleem shows it to SDL games (the Xbox 360 layout: A=0 B=1 X=2 Y=3 LB=4
-+       RB=5 Back=6 Start=7, the d-pad as hat 0): Cross fires and confirms, Circle jumps, Start is the menu */
++    /* the PlayStation Classic's own pad, as every PE program gets it (buttons 0..9 = Triangle Circle Cross Square
++       L2 R2 L1 R1 Select Start, the d-pad on axes 0/1): Cross fires and confirms, Circle jumps, Start is the menu */
 +    #define DEFAULT_BUTTON_UP           (-1)
 +    #define DEFAULT_BUTTON_DOWN         (-1)
 +    #define DEFAULT_BUTTON_LEFT         (-1)
 +    #define DEFAULT_BUTTON_RIGHT        (-1)
 +    #define DEFAULT_BUTTON_JUMP         (1)     /* Circle */
 +    #define DEFAULT_BUTTON_SWIM         (1)     /* Circle */
-+    #define DEFAULT_BUTTON_FIRE         (0)     /* Cross */
-+    #define DEFAULT_BUTTON_CHANGE       (3)     /* Triangle */
-+    #define DEFAULT_BUTTON_ENTER        (0)     /* Cross */
-+    #define DEFAULT_BUTTON_ESCAPE       (7)     /* Start */
++    #define DEFAULT_BUTTON_FIRE         (2)     /* Cross */
++    #define DEFAULT_BUTTON_CHANGE       (0)     /* Triangle */
++    #define DEFAULT_BUTTON_ENTER        (2)     /* Cross */
++    #define DEFAULT_BUTTON_ESCAPE       (9)     /* Start */
 +    #define DEFAULT_BUTTON_STATS        (-1)
-+    #define DEFAULT_BUTTON_PAUSE        (6)     /* Select */
++    #define DEFAULT_BUTTON_PAUSE        (8)     /* Select */
 +    #define DEFAULT_BUTTON_YES          (-1)
 +    #define DEFAULT_BUTTON_NO           (-1)
  #elif defined(WII)
@@ -34,10 +34,10 @@ index 5341b87..02d54bb 100644
  #include "setup.h"
  #include "util.h"
  
-+// the saved settings' format; the console build counts on from 5 so that a file saved with the old pad buttons is not
++// the saved settings' format; the console build counts on from 5 so that a file saved with other pad buttons is not
 +// read back over the console's own defaults
 +#ifdef AB_PSC
-+	#define CONFIG_VERSION 6
++	#define CONFIG_VERSION 7
 +#else
 +	#define CONFIG_VERSION 5
 +#endif
