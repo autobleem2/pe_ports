@@ -10,3 +10,6 @@
 [submodule "ports/tyrquake/upstream"]
 	path = ports/tyrquake/upstream
 	url = git://disenchant.net/tyrquake
+[submodule "ports/dosbox/upstream"]
+	path = ports/dosbox/upstream
+	url = https://gitlab.com/modmyclassic/ports/dosbox.git
