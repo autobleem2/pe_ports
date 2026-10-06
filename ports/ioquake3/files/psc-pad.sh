@@ -20,25 +20,25 @@ export OA_DATA
 padlog="${RUNTIME_LOG_PATH:-/tmp}/ioquake3-pad.log"
 daemon_log="${AB_LOG_DIR:-/tmp/autobleem/logs}/abpadd.log"
 
-# player 1's pad, as the pad daemon names it (it may still be starting: a few short waits)
 player1=
-tries=0
-while [ "$tries" -lt 4 ]; do
-    player1=$(grep 'abpadd: player 1 is ' "$daemon_log" 2>/dev/null | head -n 1)
-    [ -n "$player1" ] && break
-    tries=$((tries + 1))
-    sleep 1
-done
-
 case "${AB_APP_PAD_MODE:-psc-kernel}" in
     x360-kernel|x360)
         layout=x360
+        # player 1's pad, as the pad daemon names it (it may still be starting: a few short waits)
+        tries=0
+        while [ "$tries" -lt 4 ]; do
+            player1=$(grep 'abpadd: player 1 is ' "$daemon_log" 2>/dev/null | head -n 1)
+            [ -n "$player1" ] && break
+            tries=$((tries + 1))
+            sleep 1
+        done
         case "$player1" in
             *[Cc]lassic\ [Cc]ontroller*|*Sony\ Interactive*) style=dpad ;;
             *) style=analog ;;
         esac
         ;;
     *)
+        # the console's own pad whatever is plugged in: nothing to choose
         layout=psc
         style=dpad
         ;;
