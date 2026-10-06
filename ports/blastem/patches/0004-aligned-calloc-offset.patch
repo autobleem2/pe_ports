@@ -1,0 +1,14 @@
+--- a/util.c
++++ b/util.c
+@@ -42,8 +42,9 @@ void *aligned_calloc(size_t nmemb, size_t size, size_t align)
+ 	return calloc(nmemb, size);
+ #else
+ 	uint8_t *ret = calloc(1, nmemb * size + align);
+-	ret += align - (((intptr_t)ret) & (align - 1));
+-	ret[-1] = (uint8_t)align;
++	uint8_t offset = align - (((intptr_t)ret) & (align - 1));
++	ret += offset;
++	ret[-1] = offset;
+ 	return ret;
+ #endif
+ }
