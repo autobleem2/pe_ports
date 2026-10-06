@@ -1,4 +1,4 @@
-openarena-data: where the data comes from
+openarenadata: where the data comes from
 ==========================================
 
 OpenArena is not kept in a git repository: its game data is released as an archive. This package packs eight files of

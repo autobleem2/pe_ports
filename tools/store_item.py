@@ -8,9 +8,9 @@ For every ports/<id>/port.ini whose out/<id>-<version>.mod exists, <dest>/ gets 
 icon, the same as inside the package) and <id>.item.json: id pe/<id>, kind pe, title, version, author, licence,
 description from port.ini, `source_url` = the package's source archive on the site (AB_SOURCE_BASE, the address
 mkmod.py writes into SOURCE.txt), `requires` (port.ini's optional `requires=`, port ids, written as pe/<id>: what
-must be installed first - the ioquake3 package needs the openarena-data one) and the one .mod in files[] (the
-catalog adds its size and sha256 when the site indexes). A port without its .mod or its source archive in out/ is an error: a release is whole or not published
-(--only <id>... limits the ports). The source archive is never one of the files. Only the standard library.
+must be installed first - the ioquake3 package needs the openarenadata one) and the one .mod in files[] (the
+catalog adds its size and sha256 when the site indexes). A port without its .mod or its source archive in out/ is an
+error: a release is whole or not published (--only <id>... limits the ports). The source archive is never one of the files. Only the standard library.
 """
 import argparse
 import configparser

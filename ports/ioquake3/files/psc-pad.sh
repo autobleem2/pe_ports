@@ -2,7 +2,7 @@
 # the engine starts. Licence: GPL-2.0-or-later, like the rest of this package.
 #
 #   OA_DATA            where the "OpenArena data" App put the game files (baseoa/pak*.pk3); launch.sh hands it to
-#                      the engine as fs_cdpath
+#                      the engine as fs_basepath
 #   .q3a/baseoa/psc_pad.cfg
 #                      the key bindings of this run, made from files in psc/: the layout of the pad the App is run
 #                      with (AB_APP_PAD_MODE: x360-kernel / x360 = an Xbox 360 pad, else the console's own pad) and,
@@ -14,7 +14,7 @@
 # The decision is logged in ioquake3-pad.log next to the engine's own log.
 
 app=$(pwd -P)
-OA_DATA=$(dirname "$app")/pe-openarena-data
+OA_DATA=$(dirname "$app")/pe-openarenadata
 export OA_DATA
 
 padlog="${RUNTIME_LOG_PATH:-/tmp}/ioquake3-pad.log"

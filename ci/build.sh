@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds PE ports in the autobleem-build image (ghcr.io/autobleem2/autobleem-build) and packs them:
 #
-#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarena-data    one port
+#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata    one port
 #   ci/build.sh all                                         every port in ports/
 #
 # For each port the result is, in out/:

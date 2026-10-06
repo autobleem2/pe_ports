@@ -12,7 +12,7 @@ Wave 1 (this repository's first release): **OpenLara**, **Commander Genius** (Ke
 
 ```
 git clone --recurse-submodules <this repository>
-ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarena-data|all     # inside ghcr.io/autobleem2/autobleem-build
+ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|all     # inside ghcr.io/autobleem2/autobleem-build
 ```
 
 The result is in `out/`:
