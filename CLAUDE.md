@@ -10,6 +10,11 @@ What this repository is and its layout: `README.md`. Rules that matter when you 
   libraries, no pad-select pictures. `launch.sh`, `launcher.cfg` and the icon come from `tools/mkmod.py`.
 - **Game data only when the licence lets us hand it out**, byte for byte, with its licence file, under
   `ports/<id>/data/` (`.gitattributes` keeps it binary). Say what and why in `port.ini` `[data]`.
+- **A data port (`[package]` in `port.ini`: liero, xargon) ships a game's files byte for byte** - the licences allow
+  spreading them only unchanged. Our additions (`package.ini`, the pad map, `licences/`, `SOURCE.txt`, the icon) sit
+  outside the game's folder; the archive is fetched against the sha256 in `[data]`, from the author's or the named
+  hosting page only, and nothing else is ever downloaded for it. A new game needs its licence read and its
+  `licence_note` written first.
 - **A dependency that is not in git is fetched with `fetch` (ci/build.sh) against a pinned sha256**, never "latest",
   and named in the port's `changes=` so `SOURCE.txt` shows it.
 - **Pinned fetches come from our site first** (`$AB_DEPS_BASE/<name>/<file>`, default
