@@ -12,6 +12,10 @@ import pytest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCRIPT = os.path.join(ROOT, "tools", "store_item.py")
 SITE_TOOLS = os.environ.get("PE_SITE_TOOLS") or os.path.abspath(os.path.join(ROOT, "..", "pe-site", "tools"))
+ALL_PORTS = tuple(sorted(d for d in os.listdir(os.path.join(ROOT, "ports"))
+                         if os.path.isfile(os.path.join(ROOT, "ports", d, "port.ini"))))
+
+
 def port_version(pid):
     with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
         return [ln.split("=", 1)[1] for ln in f.read().splitlines() if ln.startswith("version=")][0].strip()
@@ -57,7 +61,7 @@ def test_descriptor_from_port_ini():
 
 def test_a_missing_package_stops_the_release():
     with tempfile.TemporaryDirectory() as w:
-        release(os.path.join(w, "out"), ports=("commanderkeen", "openjazz", "openlara"))
+        release(os.path.join(w, "out"), ports=tuple(p for p in ALL_PORTS if p != "tyrquake"))
         r = run("--out", os.path.join(w, "out"), "--dest", os.path.join(w, "d"))
         assert r.returncode != 0 and "tyrquake" in r.stderr and "incomplete" in r.stderr
         release(os.path.join(w, "out"), ports=("tyrquake",))
@@ -85,7 +89,7 @@ def test_source_base_follows_ab_source_base():
                     reason="needs bash and autobleem-repo's tools")
 def test_release_publish_into_a_temp_site_tree():
     """the site job's two steps with --local: the source archives, then the store items; the index run lists them"""
-    ports = ("commanderkeen", "openjazz", "openlara", "tyrquake")
+    ports = ALL_PORTS
     with tempfile.TemporaryDirectory() as w, tempfile.TemporaryDirectory() as site:
         out = os.path.join(w, "out")
         release(out, ports=ports)
@@ -111,4 +115,4 @@ def test_release_publish_into_a_temp_site_tree():
             assert os.path.isfile(os.path.join(site, "source", i["source_url"].split("/source/", 1)[1]))
         with open(os.path.join(site, "store", "index.html"), encoding="utf-8") as f:
             page = f.read()
-        assert "PE Apps</h2>" in page and page.count("Source code") == 4
+        assert "PE Apps</h2>" in page and page.count("Source code") == len(ports)

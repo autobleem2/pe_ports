@@ -7,11 +7,11 @@ folder. Each package comes with its **corresponding source** (a separate archive
 GPL's source duties are met by our own build, not by a third party's binary.
 
 Wave 1 (this repository's first release): **OpenLara**, **Commander Genius** (Keen 1), **OpenJazz** (Jazz Jackrabbit
-1) and **TyrQuake** (Quake shareware).
+1) and **TyrQuake** (Quake shareware). Then **BlastEm** (a Mega Drive emulator; the player brings the games).
 
 ```
 git clone --recurse-submodules <this repository>
-ci/build.sh openlara|commanderkeen|openjazz|tyrquake|all     # inside ghcr.io/autobleem2/autobleem-build
+ci/build.sh openlara|commanderkeen|openjazz|tyrquake|blastem|all     # inside ghcr.io/autobleem2/autobleem-build
 ```
 
 The result is in `out/`:
@@ -81,6 +81,7 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 | openjazz | psc-kernel | 0 | 1 | `patches/0002-psc-pad-buttons.patch`: Cross fire/confirm, Circle jump, Triangle weapon, Start the menu, Select pause |
 | openlara | psc-kernel | 0 | 1 | the console pad's evdev codes (upstream) |
 | tyrquake | psc-kernel | 0 | 1 | `patches/0002-sdl-pad-input.patch` and the 2020 `config.cfg` |
+| blastem | psc-kernel | 0 | 1 | `patches/0001-psc-pad-mapping.patch`: an SDL game-controller mapping for the console pad; `patches/0002-psc-defaults.patch` binds it: Cross/Circle/Square = A/B/C, Triangle/L1/R1 = X/Y/Z, Start, Select = Mode, L2 and R2 open the menu, the d-pad on the half-axes |
 
 ### Where the source goes
 
