@@ -1,0 +1,53 @@
+--- a/nuklear_ui/blastem_nuklear.h
++++ b/nuklear_ui/blastem_nuklear.h
+@@ -7,6 +7,10 @@
+ #define NK_INCLUDE_DEFAULT_ALLOCATOR
+ #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+ #define NK_INCLUDE_FONT_BAKING
++#ifdef AB_PSC
++//Nuklear's own ProggyClean (MIT, in nuklear.h): the console has no fontconfig and no system font
++#define NK_INCLUDE_DEFAULT_FONT
++#endif
+ #include "nuklear.h"
+ #include "nuklear_sdl_gles2.h"
+ 
+--- a/nuklear_ui/blastem_nuklear.c
++++ b/nuklear_ui/blastem_nuklear.c
+@@ -2798,9 +2798,24 @@
+ 	}
+ 	uint32_t font_size;
+ 	uint8_t *font = default_font(&font_size);
++#ifdef AB_PSC
++	if (!font) {
++		def_font = nk_font_atlas_add_default(atlas, height / 24, 0);
++		if (fb_context) {
++			nk_rawfb_font_stash_end(fb_context);
++		} else {
++#ifndef DISABLE_OPENGL
++			nk_sdl_font_stash_end(ctx);
++#endif
++		}
++		nk_style_set_font(ctx, &def_font->handle);
++		return;
++	}
++#else
+ 	if (!font) {
+ 		fatal_error("Failed to find default font path\n");
+ 	}
++#endif
+ 	struct nk_font_config font_config = nk_font_config(height / 24);
+ 	static const nk_rune ranges[] = {
+ 		0x20, 0x7E, //ASCII
+--- a/nuklear_ui/font.c
++++ b/nuklear_ui/font.c
+@@ -47,6 +47,10 @@
+ 			}
+ 		}
+ 	}
++	if (!*num_out) {
++		free(buffer);
++		return NULL;
++	}
+ 	ret = calloc(*num_out, sizeof(char*));
+ 	size_t entry = 0;
+ 	ret[entry++] = buffer;

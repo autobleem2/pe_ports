@@ -1,0 +1,24 @@
+# BlastEm 1.0.0: the Makefile of the upstream with its portable 68000 and Z80 cores (the dynamic recompiler is x86
+# only), OpenGL ES 2 through the launcher's SDL2, the bundled zlib. The cores are generated from the .cpu files by the
+# upstream's cpu_dsl.py (python3 is in the build image). No GTK (the file chooser is BlastEm's own), no GLEW.
+# Sourced by ci/build.sh with $SRC (patched upstream), $STAGE (the launcher folder's files), $PORT_DIR.
+port_build() {
+    chmod +x "$SRC/cpu_dsl.py"
+    # sdl2.pc is the launcher's SDL2; glesv2.pc is the console sysroot's (its -I/usr/include would be the host's)
+    export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$PSC/sysroot/usr/lib/arm-linux-gnueabihf/pkgconfig"
+    export PKG_CONFIG_SYSROOT_DIR="$PSC/sysroot"
+    # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
+    make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
+        OPT="-O2 -flto=$JOBS $PSC_FLAGS -DAB_PSC"
+    cp "$SRC/blastem" "$STAGE/blastem"
+    "$STRIP" "$STAGE/blastem"
+
+    # what the program reads from its own folder at run time
+    cp "$SRC/default.cfg" "$SRC/rom.db" "$SRC/systems.cfg" "$SRC/gamecontrollerdb.txt" "$STAGE/"
+    cp -a "$SRC/shaders" "$SRC/images" "$STAGE/"
+
+    # our start-up script and the games folder's note
+    cp "$PORT_DIR/files/psc-setup.sh" "$STAGE/psc-setup.sh"
+    mkdir -p "$STAGE/psc"
+    cp "$PORT_DIR/files/roms-README.txt" "$STAGE/psc/roms-README.txt"
+}
