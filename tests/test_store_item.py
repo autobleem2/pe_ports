@@ -1,5 +1,8 @@
 """tools/store_item.py: the Store's pe items from port.ini and a release's out/ folder; and, when autobleem-repo's
 tools are around (PE_SITE_TOOLS, default the sibling pe-site worktree), the whole publish into a temp site tree."""
+import configparser
+import configparser
+import configparser
 import json
 import os
 import shutil
@@ -50,9 +53,66 @@ def test_descriptor_from_port_ini():
         assert d["source_url"] == SOURCE
         assert d["files"] == [{"name": CK + ".mod"}]  # the source archive is never a file
         assert d["image"] == "commanderkeen.png"
+        assert d["category"] == "games"  # the package type: port.ini's, the same the .mod's control file carries
+        assert d["category"] == "games"  # the package type: port.ini's, the same the .mod's control file carries
+        assert d["category"] == "games"  # the package type: port.ini's, the same the .mod's control file carries
         with open(os.path.join(w, "d", "commanderkeen.png"), "rb") as f:
             assert f.read(8) == b"\x89PNG\r\n\x1a\n"
         assert os.path.isfile(os.path.join(w, "d", CK + ".mod"))
+
+
+def test_port_category_is_lower_case_and_checked():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    assert mkmod.port_category({"id": "x", "category": " Games "}) == "games"
+    assert mkmod.port_category({"id": "x"}) == ""  # untyped: the launcher files it under "PE apps"
+    with pytest.raises(SystemExit):
+        mkmod.port_category({"id": "x", "category": "pe"})  # PE apps is the launcher's home for untyped mods only
+
+
+def test_every_port_names_its_package_type():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    for pid in sorted(os.listdir(os.path.join(ROOT, "ports"))):
+        cfg = configparser.ConfigParser(interpolation=None)
+        cfg.read(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8")
+        assert mkmod.port_category(cfg["port"]) == "games", pid
+
+
+def test_port_category_is_lower_case_and_checked():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    assert mkmod.port_category({"id": "x", "category": " Games "}) == "games"
+    assert mkmod.port_category({"id": "x"}) == ""  # untyped: the launcher files it under "PE apps"
+    with pytest.raises(SystemExit):
+        mkmod.port_category({"id": "x", "category": "pe"})  # PE apps is the launcher's home for untyped mods only
+
+
+def test_every_port_names_its_package_type():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    for pid in sorted(os.listdir(os.path.join(ROOT, "ports"))):
+        cfg = configparser.ConfigParser(interpolation=None)
+        cfg.read(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8")
+        assert mkmod.port_category(cfg["port"]) == "games", pid
+
+
+def test_port_category_is_lower_case_and_checked():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    assert mkmod.port_category({"id": "x", "category": " Games "}) == "games"
+    assert mkmod.port_category({"id": "x"}) == ""  # untyped: the launcher files it under "PE apps"
+    with pytest.raises(SystemExit):
+        mkmod.port_category({"id": "x", "category": "pe"})  # PE apps is the launcher's home for untyped mods only
+
+
+def test_every_port_names_its_package_type():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import mkmod
+    for pid in sorted(os.listdir(os.path.join(ROOT, "ports"))):
+        cfg = configparser.ConfigParser(interpolation=None)
+        cfg.read(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8")
+        assert mkmod.port_category(cfg["port"]) == "games", pid
 
 
 def test_a_missing_package_stops_the_release():
@@ -105,6 +165,9 @@ def test_release_publish_into_a_temp_site_tree():
             catalog = json.load(f)
         assert sorted(i["id"] for i in catalog["items"]) == ["pe/" + p for p in sorted(ports)]
         for i in catalog["items"]:
+            assert i["category"] == "games"
+            assert i["category"] == "games"
+            assert i["category"] == "games"
             assert i["kind"] == "pe" and i["files"][0]["name"].endswith(".mod") and i["files"][0]["sha256"]
             assert i["source_url"].startswith("https://autobleem.retromenele.pl/source/")
             # the address the package names is where pe-source put the archive
