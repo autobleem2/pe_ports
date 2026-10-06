@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../../.."
 PORT=$PWD/ports/tyrquake
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
-git -c safe.directory='*' -C "$PORT/upstream" archive HEAD | tar -x -C "$W"
+(cd "$PORT/upstream" && tar --exclude=.git -cf - .) | tar -x -C "$W"
 for p in "$PORT"/patches/*.patch; do patch -s -p1 -d "$W" < "$p"; done
 cp "$PORT/tests/gc_keys.c" "$W/common/gc_keys.c"
 SDLINC=${AB_PSC_TOOLCHAIN:-/opt/psc}/sdl2/include/SDL2
