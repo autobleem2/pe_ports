@@ -1,0 +1,40 @@
+diff --git a/code/sdl/sdl_input.c b/code/sdl/sdl_input.c
+index 2ad324e3..ae320f76 100644
+--- a/code/sdl/sdl_input.c
++++ b/code/sdl/sdl_input.c
+@@ -47,6 +47,7 @@ static cvar_t *in_nograb;
+ static cvar_t *in_joystick          = NULL;
+ static cvar_t *in_joystickThreshold = NULL;
+ static cvar_t *in_joystickNo        = NULL;
++static cvar_t *in_joystickGamepad   = NULL;
+ static cvar_t *in_joystickUseAnalog = NULL;
+ 
+ static int vidRestartTime = 0;
+@@ -520,7 +521,9 @@ static void IN_InitJoystick( void )
+ 		return;
+ 	}
+ 
+-	if (SDL_IsGameController(in_joystickNo->integer))
++	// in_joystickGamepad 0: read every pad as a plain joystick (IN_JoyMove: JOY1.. buttons, axes as arrows), even one
++	// SDL has a game controller mapping for - what the console's key bindings and the OpenArena menus expect
++	if (in_joystickGamepad->integer && SDL_IsGameController(in_joystickNo->integer))
+ 		gamepad = SDL_GameControllerOpen(in_joystickNo->integer);
+ 
+ 	Com_DPrintf( "Joystick %d opened\n", in_joystickNo->integer );
+@@ -1105,7 +1108,7 @@ static void IN_ProcessEvents( void )
+ 
+ 			case SDL_CONTROLLERDEVICEADDED:
+ 			case SDL_CONTROLLERDEVICEREMOVED:
+-				if (in_joystick->integer)
++				if (in_joystick->integer && in_joystickGamepad->integer)
+ 					IN_InitJoystick();
+ 				break;
+ 
+@@ -1234,6 +1237,7 @@ void IN_Init( void *windowData )
+ 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE );
+ 
+ 	in_joystick = Cvar_Get( "in_joystick", "0", CVAR_ARCHIVE|CVAR_LATCH );
++	in_joystickGamepad = Cvar_Get( "in_joystickGamepad", "1", CVAR_ARCHIVE );
+ 	in_joystickThreshold = Cvar_Get( "joy_threshold", "0.15", CVAR_ARCHIVE );
+ 
+ 	SDL_StartTextInput( );

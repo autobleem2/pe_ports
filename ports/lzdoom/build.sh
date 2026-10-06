@@ -26,6 +26,7 @@ port_build() {
     cp "$cross/lzdoom.pk3" "$cross/brightmaps.pk3" "$cross/lights.pk3" "$cross/game_support.pk3" "$STAGE/"
     # our start-up helper and the pad's bindings (files/)
     cp "$PORT_DIR/files/psc-pad.sh" "$STAGE/psc-pad.sh"
+    cp "$PORT_DIR/files/alsoft.conf" "$STAGE/alsoft.conf"
     mkdir -p "$STAGE/psc"
     cp "$PORT_DIR/files/psc/"*.cfg "$STAGE/psc/"
 
