@@ -130,8 +130,31 @@ def test_the_unpatched_upstream_fails_the_same_test():
     assert "free() got" in r.stdout
 
 
-def test_the_port_carries_the_fix_in_its_version_and_changes():
+def smd_loader(patches):
+    """system.c's load_smd_rom with the given patches applied"""
+    tmp = tempfile.mkdtemp()
+    try:
+        dst = os.path.join(tmp, "system.c")
+        shutil.copy(os.path.join(PORT, "upstream", "system.c"), dst)
+        for patch in patches:
+            r = subprocess.run(["git", "apply", os.path.join(PORT, "patches", patch)], cwd=tmp,
+                               capture_output=True, text=True)
+            assert r.returncode == 0, patch + ": " + r.stderr
+        with open(dst, encoding="utf-8") as f:
+            src = f.read()
+        return src[src.index("int load_smd_rom"):src.index("uint8_t is_smd_format")]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_the_smd_loader_leaves_the_file_to_load_media():
+    """load_media closes the ROM file on every path; the SMD loader closing it too was a double close"""
+    assert "romclose(f)" in smd_loader([])  # the upstream does it
+    assert "romclose" not in smd_loader(["0005-smd-close-once.patch"])
+
+
+def test_the_port_carries_the_fixes_in_its_version_and_changes():
     with open(os.path.join(PORT, "port.ini"), encoding="utf-8") as f:
         ini = f.read()
-    assert "version=1.0.0-3" in ini
-    assert "0004-aligned-calloc-offset.patch" in ini
+    assert "version=1.0.0-4" in ini
+    assert "0004-aligned-calloc-offset.patch" in ini and "0005-smd-close-once.patch" in ini

@@ -1,0 +1,10 @@
+--- a/system.c
++++ b/system.c
+@@ -83,7 +83,6 @@ int load_smd_rom(ROMFILE f, void **buffer)
+ 			readsize += read;
+ 		}
+ 	} while(read > 0);
+-	romclose(f);
+ 
+ 	*buffer = buf;
+ 

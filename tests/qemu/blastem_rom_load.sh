@@ -1,6 +1,6 @@
 #!/bin/sh
 # BlastEm's ROM load on the console's own libc: the real PSC binary of a .mod under qemu-arm, with the libraries
-# copied off a console, once per synthetic ROM (256 KB, 1/2/4 MB, a ROM in a .zip; SMD files listed only). A 32-bit ARM malloc
+# copied off a console, once per synthetic ROM (256 KB, 1/2/4 MB, a ROM in a .zip, and the SMD form of 256 KB and 1 MB). A 32-bit ARM malloc
 # aligns to 8, which a PC test never shows (util.c aligned_calloc stored the alignment instead of the real shift and
 # every ROM over 512 KB crashed in free()). Nothing is written outside a temporary folder.
 #
@@ -52,8 +52,6 @@ python3 "$HERE/mkrom.py" "$W/test1024-smd.smd" 1024 smd >/dev/null
 python3 "$HERE/mkrom.py" "$W/test2048.zip" 2048 zip >/dev/null
 
 BAD=0
-# the SMD files are run and listed but not judged: an SMD file dies in load_media's second romclose (load_smd_rom
-# already closed it: "double free or corruption") at any size, with the fix too - a different, older upstream bug
 for name in test256.bin test1024.bin test2048.bin test4096.bin test2048.zip test256-smd.smd test1024-smd.smd; do
     H=$W/home-$name; mkdir -p "$H"
     (cd "$APP" && HOME=$H QEMU_LD_PREFIX=$L timeout 300 qemu-arm -L "$L" ./blastem -b "$FRAMES" "$W/$name") \
@@ -64,7 +62,6 @@ for name in test256.bin test1024.bin test2048.bin test4096.bin test2048.zip test
     crashed=0
     [ $rc -ne 0 ] && crashed=1
     grep -q 'invalid pointer' "$W/q.log" && crashed=1
-    case $name in *.smd) continue ;; esac
     if [ "$EXPECT" = crash ]; then
         # the contrast: the small ROM runs, the 1 MB plain ROM dies (the others are listed, not judged)
         [ "$name" = test256.bin ] && [ $crashed -ne 0 ] && BAD=1
