@@ -1,7 +1,10 @@
 # LZDoom on the PlayStation Classic: sourced by launch.sh (port.ini, [launcher] pre=) in the App's folder, before
 # the engine starts. Licence: GPL-3.0-only, like the rest of this package.
 #
-#   LZ_IWAD / LZ_MODS  what the engine plays: the game file the player put in this App's WAD folder (Doom, Doom II,
+#   LZ_IWAD / LZ_MODS  what the engine plays: the game the launcher's "Choose game data" picked (AB_PKG_FILE, read-only:
+#                      Freedoom from a package, or a WAD of this App's own WAD folder, which the launcher lists too).
+#                      Without a pick - a launcher that has no game packages - the old search: the game file the
+#                      player put in this App's WAD folder (Doom, Doom II,
 #                      Heretic, ... anything *.wad there; the first by the order doom2, doom, plutonia, tnt, heretic,
 #                      hexen, then by name), else Freedoom from the "Freedoom data" App (freedoom2.wad); every
 #                      .wad/.pk3/.pk7/.zip in MODS is loaded as a mod (-file), by name. Names with spaces are skipped.
@@ -27,17 +30,21 @@ daemon_log="${AB_LOG_DIR:-/tmp/autobleem/logs}/abpadd.log"
 # --- the game file and the mods ----------------------------------------------------------------------------
 LZ_IWAD=
 for name in doom2 doom plutonia tnt heretic hexen strife; do
+    [ -n "${AB_PKG_FILE:-}" ] && break
     for f in WAD/"$name".wad WAD/"$name".WAD; do
         [ -f "$f" ] && { LZ_IWAD=$f; break 2; }
     done
 done
-if [ -z "$LZ_IWAD" ]; then
+if [ -z "$LZ_IWAD" ] && [ -z "${AB_PKG_FILE:-}" ]; then
     for f in WAD/*.wad WAD/*.WAD; do
         [ -f "$f" ] && { LZ_IWAD=$f; break; }
     done
 fi
 iwad_from="the WAD folder"
-if [ -z "$LZ_IWAD" ]; then
+if [ -n "${AB_PKG_FILE:-}" ]; then
+    LZ_IWAD=$AB_PKG_FILE
+    iwad_from="game package ${AB_PKG_ID:-?}"
+elif [ -z "$LZ_IWAD" ]; then
     LZ_IWAD=$LZ_FREEDOOM/freedoom2.wad
     iwad_from="Freedoom"
 fi

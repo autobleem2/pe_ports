@@ -1,6 +1,6 @@
 # OpenArena 0.8.8 game data: no compiling. The release archive is fetched (pinned sha256), eight of its pk3 files and its
-# licence texts are taken out unmodified. The package is a data package (port.ini kind=data): its launcher folder holds
-# baseoa/, which the ioquake3 package finds as fs_basepath (ports/ioquake3/files/psc-pad.sh).
+# licence texts are taken out unmodified. The package is a game-data package (port.ini kind=data, [datapackage]): its folder holds
+# baseoa/, which the launcher hands to ioquake3 as AB_PKG_DIR = fs_basepath (ports/ioquake3/files/psc-pad.sh).
 # Sourced by ci/build.sh with $SRC (the data port's notes), $STAGE (the launcher folder's files), $PORT_DIR.
 port_build() {
     local ver=openarena-0.8.8 zip=openarena-0.8.8.zip pak
@@ -17,5 +17,4 @@ port_build() {
     unzip -q -o "$ROOT/build_data/$zip" "$ver/COPYING" "$ver/CREDITS" "$ver/README" "$ver/readme_088.txt" -d "$BUILD_DIR/zip"
     cp "$BUILD_DIR/zip/$ver/COPYING" "$BUILD_DIR/zip/$ver/CREDITS" "$BUILD_DIR/zip/$ver/README" \
         "$BUILD_DIR/zip/$ver/readme_088.txt" "$SRC/"
-    cp "$PORT_DIR/files/openarenadata.sh" "$STAGE/openarenadata.sh"
 }

@@ -1,6 +1,6 @@
 # Freedoom 0.13.0 game data: no compiling. The release archive is fetched (pinned sha256), the two WAD files and the
-# licence texts are taken out unmodified. The package is a data package (port.ini kind=data): its launcher folder holds
-# freedoom1.wad and freedoom2.wad, which the lzdoom package finds next to its own folder (ports/lzdoom/files/psc-pad.sh).
+# licence texts are taken out unmodified. The package is a game-data package (port.ini kind=data, [datapackage]): its folder holds
+# freedoom1.wad and freedoom2.wad, which the launcher hands to lzdoom as AB_PKG_FILE (ports/lzdoom/files/psc-pad.sh).
 # Sourced by ci/build.sh with $SRC (the data port's notes), $STAGE (the launcher folder's files), $PORT_DIR.
 port_build() {
     local ver=freedoom-0.13.0 zip=freedoom-0.13.0.zip
@@ -13,5 +13,4 @@ port_build() {
     # the release's own licence and credit texts: mkmod.py copies them from $SRC into the package's licences/
     unzip -q -o "$ROOT/build_data/$zip" "$ver/COPYING.txt" "$ver/CREDITS.txt" "$ver/CREDITS-MUSIC.txt" -d "$BUILD_DIR/zip"
     cp "$BUILD_DIR/zip/$ver/COPYING.txt" "$BUILD_DIR/zip/$ver/CREDITS.txt" "$BUILD_DIR/zip/$ver/CREDITS-MUSIC.txt" "$SRC/"
-    cp "$PORT_DIR/files/freedoomdata.sh" "$STAGE/freedoomdata.sh"
 }

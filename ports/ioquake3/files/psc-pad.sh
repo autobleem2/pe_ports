@@ -1,8 +1,10 @@
 # ioquake3 on the PlayStation Classic: sourced by launch.sh (port.ini, [launcher] pre=) in the App's folder, before
 # the engine starts. Licence: GPL-2.0-or-later, like the rest of this package.
 #
-#   OA_DATA            where the "OpenArena data" App put the game files (baseoa/pak*.pk3); launch.sh hands it to
-#                      the engine as fs_basepath
+#   OA_DATA            where the game files are (baseoa/pak*.pk3); launch.sh hands it to the engine as fs_basepath.
+#                      It is the package the launcher's "Choose game data" picked (AB_PKG_DIR, read-only: the engine
+#                      keeps everything it writes under the App's own HOME); without a pick - a launcher that has no
+#                      game packages - the OpenArena data App next to this one
 #   .q3a/baseoa/psc_pad.cfg
 #                      the key bindings of this run, made from files in psc/: the layout of the pad the App is run
 #                      with (AB_APP_PAD_MODE: x360-kernel / x360 = an Xbox 360 pad, else the console's own pad) and,
@@ -14,7 +16,13 @@
 # The decision is logged in ioquake3-pad.log next to the engine's own log.
 
 app=$(pwd -P)
-OA_DATA=$(dirname "$app")/pe-openarenadata
+if [ -n "${AB_PKG_DIR:-}" ]; then
+    OA_DATA=$AB_PKG_DIR
+    data_from="game package ${AB_PKG_ID:-?}"
+else
+    OA_DATA=$(dirname "$app")/pe-openarenadata
+    data_from="the OpenArena data App"
+fi
 export OA_DATA
 
 padlog="${RUNTIME_LOG_PATH:-/tmp}/ioquake3-pad.log"
@@ -59,5 +67,5 @@ cfg=.q3a/baseoa/psc_pad.cfg
 {
     echo "pad mode: ${AB_APP_PAD_MODE:-unset} -> layout $layout, style $style"
     echo "player 1: ${player1:-(no answer from the pad daemon)}"
-    echo "data folder: $OA_DATA ($( [ -f "$OA_DATA/baseoa/pak0.pk3" ] && echo found || echo MISSING ))"
+    echo "data folder: $OA_DATA (from $data_from; $( [ -f "$OA_DATA/baseoa/pak0.pk3" ] && echo found || echo MISSING ))"
 } > "$padlog" 2>&1

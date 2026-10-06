@@ -79,6 +79,14 @@ game, its setup - the launcher asks when there are two or more), `mapper=` (the 
 `dos-game` kind only), `replaces=`. `[data]`: `source_url`, `archive_file`, `archive_sha256`, `game_folder`,
 `licence_note`. A game's files are **never** changed: what a port adds sits outside the game's folder.
 
+**Game data as a `.mod`** (freedoomdata, openarenadata): a `kind=data` port with a `[datapackage]` section (the keys of
+`[package]`: `content_kind`, `games=id|title|file;...`, and an optional shorter `description`, 200 characters at most)
+is still built as a `.mod` (so the Store's `pe/<id>` items and `requires=` keep working), but its launcher folder is
+the package: the game's files, `package.ini` (written by `mkmod.py`), the icon, `licences/` and `SOURCE.txt`, and no
+`launch.sh`; `launcher.cfg` says `launcher_package="1"`. proc_pe (1.2.0 and later) unpacks it into
+`Packages/pe-<filename>/` - never into `Apps/` - and removes the App an older version of the same mod made. The kind
+is one of the launcher's table (`rc/packages.ini`): `doom-iwad` for Freedoom, `q3-openarena` for OpenArena.
+
 ### What a package is
 
 A Debian archive (`ar`: `debian-binary`, `control.tar.gz`, `data.tar.xz`) whose data holds one folder

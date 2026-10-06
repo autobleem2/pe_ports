@@ -90,7 +90,8 @@ def test_lzdoom_pad_files_never_unbind():
 
 
 def test_lzdoom_version_is_bumped():
-    assert ini("lzdoom")[("port", "version")] == "3.84-4"
+    version = ini("lzdoom")[("port", "version")]  # a later revision keeps the fix
+    assert version.startswith("3.84-") and int(version.split("-")[1]) >= 4
 
 
 def test_ioquake3_raw_joystick_patch_applies():
@@ -106,4 +107,5 @@ def test_ioquake3_uses_the_raw_joystick_and_does_not_hide_the_pad():
     assert "SDL_GAMECONTROLLER_IGNORE_DEVICES" not in port[("launcher", "env")]
     args = port[("launcher", "args")]
     assert args.index("+set in_joystickGamepad 0") < args.index("+set in_joystick 1")
-    assert port[("port", "version")] == "1.36-3"
+    version = port[("port", "version")]  # a later revision keeps the option
+    assert version.startswith("1.36-") and int(version.split("-")[1]) >= 3

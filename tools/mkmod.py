@@ -293,6 +293,8 @@ def launcher_cfg(cfg):
     p = cfg["port"]
     lines = ['launcher_filename="%s"' % cfg["launcher"]["filename"], 'launcher_title="%s"' % p["name"],
              'launcher_publisher="%s"' % p["publisher"], 'launcher_year="%s"' % p["year"]]
+    if is_data_mod(cfg):  # game data: proc_pe makes Packages/pe-<filename>/ of it, not an App (package.ini is in the folder)
+        lines.append('launcher_package="1"')
     # the engine's game-data kinds and data folders (packages spec 2.3): proc_pe copies them to app.ini's Uses=/PackageDir=
     if p.get("uses", "").strip():
         lines.append('launcher_uses="%s"' % ";".join(check_kinds(p["uses"], "port %s: uses" % p["id"])))
@@ -374,10 +376,18 @@ def _inside(path, what):
     return path
 
 
-def package_entries(cfg):
-    """The data port's [package] section as numbered games: a list of dicts (id, title, file, starts, mapper, dosbox)."""
+def is_data_mod(cfg):
+    """A data port packed as a .mod (port.ini has a [datapackage] section, the keys of [package]): its launcher folder is
+    the package - game files, package.ini, icon, licences/, SOURCE.txt - and launcher.cfg says launcher_package="1"
+    (proc_pe makes Packages/pe-<filename>/ of it and removes the App an older version made). No launch.sh."""
+    return cfg.has_section("datapackage")
+
+
+def package_entries(cfg, section="package"):
+    """The data port's [package] (or [datapackage]) section as numbered games: a list of dicts (id, title, file, starts,
+    mapper, dosbox)."""
     pid = cfg["port"]["id"]
-    sec = cfg["package"]
+    sec = cfg[section]
     kinds = check_kinds(sec.get("content_kind", ""), "port %s: content_kind" % pid)
     if not kinds:
         raise SystemExit("port %s: [package] needs content_kind" % pid)
@@ -413,10 +423,10 @@ def package_entries(cfg):
     return kinds, games
 
 
-def package_ini(cfg, stage, image):
+def package_ini(cfg, stage, image, section="package"):
     """The text of package.ini for the data port `cfg` over the staged files `stage` (every file named must be there)."""
     p = cfg["port"]
-    kinds, games = package_entries(cfg)
+    kinds, games = package_entries(cfg, section)
     must = [g["file"] for g in games] + [s[0] for g in games for s in g["starts"]] + [g["mapper"] for g in games if g["mapper"]]
     for rel in must:
         if not os.path.isfile(os.path.join(stage, *rel.split("/"))):
@@ -426,10 +436,11 @@ def package_ini(cfg, stage, image):
         raise SystemExit("port id %r is not a package id" % pid)
     out = ["[package]", "Title=" + _plain(p["name"], "Title", 80), "Kind=" + ";".join(kinds), "Id=" + pid,
            "Version=" + _plain(p["version"], "Version", 40), "Licence=" + _plain(p["licence"], "Licence", 120),
-           "Author=" + _plain(p["publisher"], "Author", 120), "Description=" + _plain(p["description"], "Description", 200),
+           "Author=" + _plain(p["publisher"], "Author", 120),
+           "Description=" + _plain(cfg[section].get("description", p["description"]), "Description", 200),
            "Image=" + image]
-    if cfg["package"].get("replaces", "").strip():
-        out.append("Replaces=" + ";".join(r.strip() for r in cfg["package"]["replaces"].split(";") if r.strip()))
+    if cfg[section].get("replaces", "").strip():
+        out.append("Replaces=" + ";".join(r.strip() for r in cfg[section]["replaces"].split(";") if r.strip()))
     for n, g in enumerate(games, 1):
         out += ["Game%d.Id=%s" % (n, g["id"]), "Game%d.Title=%s" % (n, g["title"]), "Game%d.File=%s" % (n, g["file"])]
         for m, (file, title) in enumerate(g["starts"], 1):
@@ -574,9 +585,13 @@ def main():
     try:
         folder = os.path.join(work, filename)
         shutil.copytree(a.stage, folder, symlinks=False)
-        with open(os.path.join(folder, "launch.sh"), "w", newline="\n") as f:
-            f.write(launch_sh(cfg))
-        os.chmod(os.path.join(folder, "launch.sh"), 0o755)
+        if is_data_mod(cfg):  # game data: a package, nothing to start - the descriptor instead of launch.sh
+            with open(os.path.join(folder, "package.ini"), "w", newline="\n", encoding="utf-8") as f:
+                f.write(package_ini(cfg, folder, filename + ".png", "datapackage"))
+        else:
+            with open(os.path.join(folder, "launch.sh"), "w", newline="\n") as f:
+                f.write(launch_sh(cfg))
+            os.chmod(os.path.join(folder, "launch.sh"), 0o755)
         with open(os.path.join(folder, "launcher.cfg"), "w", newline="\n") as f:
             f.write(launcher_cfg(cfg))
         with open(os.path.join(folder, filename + ".png"), "wb") as f:
