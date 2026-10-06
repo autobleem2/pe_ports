@@ -6,9 +6,9 @@
  
 +#ifdef AB_PSC
 +//The PlayStation Classic's pad as the launcher hands it over (the console pad): ten buttons in Sony's order -
-+//Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select, Start - and the d-pad on axes 0 and 1, no hat. SDL's
-+//database knows nothing of it, so it gets a mapping by its shape: Cross/Circle/Square/Triangle are A/B/X/Y,
-+//L1/R1 the shoulders, L2/R2 the triggers, the d-pad half-axes the d-pad.
++//Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select, Start - and the d-pad on axes 0 and 1, no hat. SDL 2.0.18
++//has a mapping for it too ("Playstation Controller") but without the d-pad: this one replaces it (same GUID) and adds
++//the d-pad. By its shape: Cross/Circle/Square/Triangle are A/B/X/Y, L1/R1 the shoulders, L2/R2 the triggers, the d-pad half-axes the d-pad.
 +static void add_console_pad_mapping(SDL_Joystick *joy)
 +{
 +	if (!joy || SDL_JoystickNumButtons(joy) != 10 || SDL_JoystickNumHats(joy) != 0 || SDL_JoystickNumAxes(joy) < 2) {
