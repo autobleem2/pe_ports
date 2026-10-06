@@ -1,5 +1,5 @@
 diff --git a/common/in_sdl.c b/common/in_sdl.c
-index 8be6bdb..06e957a 100644
+index 8be6bdb..cf5e8df 100644
 --- a/common/in_sdl.c
 +++ b/common/in_sdl.c
 @@ -1,5 +1,6 @@
@@ -9,7 +9,7 @@ index 8be6bdb..06e957a 100644
  
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
-@@ -39,6 +40,32 @@ cvar_t in_snd_block = { "in_snd_block", "0" };
+@@ -39,6 +40,47 @@ cvar_t in_snd_block = { "in_snd_block", "0" };
  static qboolean mouse_available;
  static int mouse_x, mouse_y;
  
@@ -31,6 +31,12 @@ index 8be6bdb..06e957a 100644
 +extern double host_frametime;
 +
 +#define TRIGGER_DEADZONE 32768/2
++/*
++ * The pad's button keys are the ones keys.h defines (K_GCA..K_GCRIGHT), the two
++ * trigger keys follow. SDL_CONTROLLER_BUTTON_MAX is the header's, not the
++ * engine's: with newer SDL headers (21) the trigger keys fell past K_LAST.
++ */
++#define GC_BUTTONS (K_GCRIGHT - K_GCA + 1)
 +static SDL_GameController* gamecontroller = NULL;
 +static qboolean gamecontroller_available = false;
 +static uint32_t gamecontroller_buttonstate = 0;
@@ -39,10 +45,19 @@ index 8be6bdb..06e957a 100644
 +static void IN_CloseGameController(void);
 +static void IN_ControllerMove(usercmd_t *cmd);
 +
++/* Only the keys keys.h has room for reach the key tables (they hold K_LAST). */
++static void
++IN_GameControllerKey(int key_code, qboolean down)
++{
++    if (key_code < K_GCA || key_code >= K_LAST)
++        return;
++    Key_Event((knum_t)key_code, down);
++}
++
  static int have_focus = 0;
  
  static void
-@@ -576,7 +603,24 @@ IN_SDL_HandleEvent(SDL_Event *event)
+@@ -576,7 +618,25 @@ IN_SDL_HandleEvent(SDL_Event *event)
  	    }
  	    break;
  
@@ -61,14 +76,15 @@ index 8be6bdb..06e957a 100644
 +        IN_StartGameController();
 +        break;
 +    case SDL_CONTROLLERBUTTONDOWN:
-+        key_lastpress = K_GCA + event->cbutton.button;
++        if (event->cbutton.button < GC_BUTTONS)
++            key_lastpress = K_GCA + event->cbutton.button;
 +        break;
 +
 +    default:
  	    break;
      }
  }
-@@ -635,6 +679,8 @@ IN_MouseMove(usercmd_t *cmd)
+@@ -635,6 +695,8 @@ IN_MouseMove(usercmd_t *cmd)
  void
  IN_Init(void)
  {
@@ -77,7 +93,7 @@ index 8be6bdb..06e957a 100644
      Q_SDL_InitOnce();
  #if 0
      SDL_EnableUNICODE(1); // Enable UNICODE translation for keyboard input
-@@ -642,10 +688,38 @@ IN_Init(void)
+@@ -642,10 +704,38 @@ IN_Init(void)
  
      mouse_x = mouse_y = 0.0;
      mouse_available = !COM_CheckParm("-nomouse");
@@ -116,7 +132,7 @@ index 8be6bdb..06e957a 100644
  }
  
  void
-@@ -653,6 +727,7 @@ IN_Shutdown(void)
+@@ -653,6 +743,7 @@ IN_Shutdown(void)
  {
      IN_UngrabMouse();
      mouse_available = 0;
@@ -124,7 +140,7 @@ index 8be6bdb..06e957a 100644
  }
  
  /* Possibly don't need these? */
-@@ -661,11 +736,14 @@ void IN_UpdateClipCursor(void) { }
+@@ -661,11 +752,14 @@ void IN_UpdateClipCursor(void) { }
  void IN_Move(usercmd_t *cmd)
  {
      IN_MouseMove(cmd);
@@ -140,7 +156,7 @@ index 8be6bdb..06e957a 100644
      if (mouse_available) {
  	SDL_bool mouse_grabbed = SDL_GetRelativeMouseMode();
  	if (mouse_grabbed) {
-@@ -676,4 +754,192 @@ void IN_Commands(void)
+@@ -676,4 +770,192 @@ void IN_Commands(void)
  		IN_GrabMouse();
  	}
      }
@@ -149,7 +165,7 @@ index 8be6bdb..06e957a 100644
 +        return;
 +
 +    // Loop through controller buttons generating key press events
-+    for(i = 0; i < SDL_CONTROLLER_BUTTON_MAX; ++i)
++    for(i = 0; i < GC_BUTTONS; ++i)
 +    {
 +        const int button_bit = 1 << i;
 +        const int key_code = K_GCA + i;
@@ -157,29 +173,29 @@ index 8be6bdb..06e957a 100644
 +        {
 +            // Check old state
 +            if((gamecontroller_buttonstate & button_bit) == 0)
-+                Key_Event(key_code, true);
++                IN_GameControllerKey(key_code, true);
 +            newbuttonstate |= button_bit;
 +        }
 +        else if(gamecontroller_buttonstate & button_bit)
 +        {
-+            Key_Event(key_code, false);
++            IN_GameControllerKey(key_code, false);
 +        }
 +    }
 +
 +    // Loop through controller triggers generating key press events
 +    for(i = 0; i < 2; ++i)
 +    {
-+        const int button_bit = 1 << (SDL_CONTROLLER_BUTTON_MAX + i);
-+        const int key_code = K_GCA + SDL_CONTROLLER_BUTTON_MAX + i;
++        const int button_bit = 1 << (GC_BUTTONS + i);
++        const int key_code = K_GCA + GC_BUTTONS + i;
 +        if(SDL_GameControllerGetAxis(gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT+i) >= TRIGGER_DEADZONE)
 +        {
 +            if((gamecontroller_buttonstate & button_bit) == 0)
-+                Key_Event(key_code, true);
++                IN_GameControllerKey(key_code, true);
 +            newbuttonstate |= button_bit;
 +        }
 +        else if(gamecontroller_buttonstate & button_bit)
 +        {
-+            Key_Event(key_code, false);
++            IN_GameControllerKey(key_code, false);
 +        }
 +    }
 +    
@@ -334,7 +350,7 @@ index 8be6bdb..06e957a 100644
 +    }
  }
 diff --git a/common/keys.c b/common/keys.c
-index 4d1521e..ee255d2 100644
+index 4d1521e..f68b4b9 100644
 --- a/common/keys.c
 +++ b/common/keys.c
 @@ -148,6 +148,25 @@ static const keyname_t keynames[] = {
@@ -363,6 +379,16 @@ index 4d1521e..ee255d2 100644
      {"PAUSE", K_PAUSE},
  
      {"SHIFT", K_SHIFT},
+@@ -813,6 +832,9 @@ Key_Event(knum_t key, qboolean down)
+ {
+     const char *binding;
+ 
++    if ((int)key < 0 || (int)key >= K_LAST)
++	return;			// the key tables hold K_LAST entries
++
+     keydown[key] = down;
+ 
+     if (!down)
 diff --git a/common/menu.c b/common/menu.c
 index 9d49fa7..78d9f55 100644
 --- a/common/menu.c
