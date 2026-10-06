@@ -1,0 +1,19 @@
+freedoomdata: where the data comes from
+=======================================
+
+Freedoom is developed in git (https://github.com/freedoom/freedoom); its game files are built from that source and
+released as an archive. This package packs two files of that archive, unmodified.
+
+Archive:   freedoom-0.13.0.zip (the Freedoom 0.13.0 release, 29 January 2024)
+Size:      24143781 bytes
+SHA-256:   3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59
+From:      https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip
+Mirror:    https://autobleem.retromenele.pl/mirror/freedoom/freedoom-0.13.0.zip (the build tries it first)
+
+Packed:     freedoom1.wad  freedoom2.wad
+Not packed: the manuals (PDF), NEWS.html and README.html.
+
+Source of the data: the Freedoom git repository at the tag v0.13.0.
+
+Licence: the modified BSD licence of COPYING.txt. COPYING.txt, CREDITS.txt and CREDITS-MUSIC.txt of the release are in
+the package's licences/ folder.
