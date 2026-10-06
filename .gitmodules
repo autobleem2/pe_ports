@@ -10,3 +10,6 @@
 [submodule "ports/tyrquake/upstream"]
 	path = ports/tyrquake/upstream
 	url = git://disenchant.net/tyrquake
+[submodule "ports/ioquake3/upstream"]
+	path = ports/ioquake3/upstream
+	url = https://github.com/ioquake/ioq3

@@ -1,0 +1,23 @@
+openarena-data: where the data comes from
+==========================================
+
+OpenArena is not kept in a git repository: its game data is released as an archive. This package packs eight files of
+that archive, unmodified.
+
+Archive:   openarena-0.8.8.zip (the OpenArena 0.8.8 release, 23 January 2012)
+Size:      425189255 bytes
+SHA-256:   5a8faf7f5b51f351b0a1618c06b6b98a5f1a6758f1d39818de2c87df2a0bac4a
+From:      http://download.tuxfamily.org/openarena/rel/088/openarena-0.8.8.zip
+           https://downloads.sourceforge.net/project/oarena/openarena-0.8.8.zip
+Mirror:    https://autobleem.retromenele.pl/deps/openarena/openarena-0.8.8.zip (the build tries it first)
+
+Packed (all in baseoa/):
+  pak0.pk3  pak1-maps.pk3  pak2-players.pk3  pak4-textures.pk3  pak5-TA.pk3  pak6-misc.pk3
+  pak6-patch085.pk3  pak6-patch088.pk3
+
+Not packed: baseoa/pak2-players-mature.pk3 (two optional player models the release's readme says may be removed), the
+missionpack, the engines and libraries for other systems.
+
+Licence: the release's readme_088.txt says "The program and data are licensed under the GNU GPL v2. See the file
+'COPYING' for details" and "The source for the media can be obtained from the OpenArena site". COPYING, CREDITS,
+README and readme_088.txt of the release are in the package's licences/ folder.

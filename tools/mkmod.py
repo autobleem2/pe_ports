@@ -418,7 +418,10 @@ def main():
                     size_kb += os.path.getsize(path)
                     with open(path, "rb") as fh:
                         t.addfile(tar_info(name, mtime, mode, size=os.path.getsize(path)), fh)
-        data = lzma.compress(raw.getvalue(), format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64, preset=9)
+        # preset 9 unless port.ini says otherwise: a package of already compressed game data (xz_preset=0) would
+        # take minutes at 9 and shrink by nothing
+        data = lzma.compress(raw.getvalue(), format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64,
+                             preset=int(p.get("xz_preset", "9")))
 
         # ---- control.tar.gz (the Debian control file: the Description's continuation lines carry the metadata)
         desc = [p["description"]]

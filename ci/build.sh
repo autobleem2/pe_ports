@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds PE ports in the autobleem-build image (ghcr.io/autobleem2/autobleem-build) and packs them:
 #
-#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake    one port
+#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarena-data    one port
 #   ci/build.sh all                                         every port in ports/
 #
 # For each port the result is, in out/:
@@ -125,7 +125,12 @@ build_port() { # build_port <id>
     # shellcheck disable=SC1091
     . "$dir/build.sh"
     port_build
-    check_binary "$STAGE/$(sed -n 's/^binary=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')"
+    # a data package (kind=data in port.ini) carries game files and a small notice script, no program to check
+    if [ "$(sed -n 's/^kind=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')" = data ]; then
+        echo "    data package: no binary to check"
+    else
+        check_binary "$STAGE/$(sed -n 's/^binary=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')"
+    fi
 
     mkdir -p out
     python3 tools/mkmod.py "$id" --stage "$STAGE" --src "$SRC" --out out

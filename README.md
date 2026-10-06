@@ -7,11 +7,12 @@ folder. Each package comes with its **corresponding source** (a separate archive
 GPL's source duties are met by our own build, not by a third party's binary.
 
 Wave 1 (this repository's first release): **OpenLara**, **Commander Genius** (Keen 1), **OpenJazz** (Jazz Jackrabbit
-1) and **TyrQuake** (Quake shareware).
+1) and **TyrQuake** (Quake shareware). Then **ioquake3** (set up for OpenArena) and its separate data package
+**OpenArena data** (`requires=` in port.ini; `kind=data`, see below).
 
 ```
 git clone --recurse-submodules <this repository>
-ci/build.sh openlara|commanderkeen|openjazz|tyrquake|all     # inside ghcr.io/autobleem2/autobleem-build
+ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarena-data|all     # inside ghcr.io/autobleem2/autobleem-build
 ```
 
 The result is in `out/`:
@@ -46,7 +47,10 @@ ports/<id>/
 upstream, copied into the package's `licences/`), upstream URL and commit, publisher/year (the launcher shows
 them), `copyright` and `changes` (printed in `SOURCE.txt`, `;`-separated), `icon_text` (the generated icon's
 lines, `|`-separated), optional `export_exclude` (upstream files that are not source of the program and stay out of
-the build and the source archive). `[launcher]` the `filename` (also the key of the program in the launcher's
+the build and the source archive), optional `requires` (port ids that must be installed first: the Store item's
+`requires`), optional `kind=data` (a package of game files with no program: `ci/build.sh` checks no binary; its
+`ports/<id>/upstream/` holds only a note naming the pinned archive the build fetches) and `xz_preset` (the package's
+xz level, 9 unless the data is already compressed). `[launcher]` the `filename` (also the key of the program in the launcher's
 compatibility list `rc/pe_compat.ini`), the `binary`, `args`, `env`. `[pad]` and `[data]` as below.
 
 ### What a package is
@@ -81,6 +85,7 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 | openjazz | psc-kernel | 0 | 1 | `patches/0002-psc-pad-buttons.patch`: Cross fire/confirm, Circle jump, Triangle weapon, Start the menu, Select pause |
 | openlara | psc-kernel | 0 | 1 | the console pad's evdev codes (upstream) |
 | tyrquake | psc-kernel | 0 | 1 | `patches/0002-sdl-pad-input.patch` and the 2020 `config.cfg` |
+| ioquake3 | psc-kernel | 0 | 1 | `files/psc/pad-psc.cfg`: Cross jump, Circle use item, Square crouch, Triangle scores, L1/R1 weapon, R2 fire, L2/Select look up/down, Start the menu; the d-pad turns and walks. With the pad mode x360-kernel (Game settings) `files/psc-pad.sh` picks d-pad or dual-analog bindings from player 1's pad |
 
 ### Where the source goes
 
