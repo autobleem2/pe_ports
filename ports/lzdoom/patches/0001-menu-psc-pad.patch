@@ -1,0 +1,26 @@
+diff --git a/src/menu/menu.cpp b/src/menu/menu.cpp
+index 1097ae6f76..cefecf953b 100644
+--- a/src/menu/menu.cpp
++++ b/src/menu/menu.cpp
+@@ -70,6 +70,9 @@ CVAR (Bool, show_messages, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+ CVAR (Bool, show_obituaries, true, CVAR_ARCHIVE)
+ CVAR (Int, m_showinputgrid, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+ CVAR(Bool, m_blockcontrollers, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
++// the console pad's buttons are numbered in Sony's order (Joy1 Triangle, Joy2 Circle, Joy3 Cross, Joy4 Square):
++// with this on, Cross is OK and Triangle is Clear in the menus (set from the command line, not saved)
++CVAR(Bool, menu_pscpad, false, 0)
+ 
+ CVAR (Float, snd_menuvolume, 0.6f, CVAR_ARCHIVE)
+ CVAR(Int, m_use_mouse, 2, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
+@@ -659,6 +662,11 @@ bool M_Responder (event_t *ev)
+ 			keyup = ev->type == EV_KeyUp;
+ 
+ 			ch = ev->data1;
++			if (menu_pscpad)
++			{
++				if (ch == KEY_JOY1) ch = KEY_JOY3;
++				else if (ch == KEY_JOY3) ch = KEY_JOY1;
++			}
+ 			switch (ch)
+ 			{
+ 			case KEY_JOY1:
