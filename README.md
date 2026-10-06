@@ -50,7 +50,9 @@ ports/<id>/
 
 ### port.ini
 
-`[port]` id, name, version (`<upstream>-<our revision>`), description, licence (SPDX), `licence_files` (paths in the
+`[port]` id, name, version (`<upstream>-<our revision>`), description, licence (SPDX), `category` (the package type:
+games, emulators, tools, media, other or packages (game data) - written into the control file and the Store item; the launcher files the
+App in that category as "<name> (mod)"), `licence_files` (paths in the
 upstream, copied into the package's `licences/`), upstream URL and commit, publisher/year (the launcher shows
 them), `copyright` and `changes` (printed in `SOURCE.txt`, `;`-separated), `icon_text` (the generated icon's
 lines, `|`-separated), optional `export_exclude` (upstream files that are not source of the program and stay out of

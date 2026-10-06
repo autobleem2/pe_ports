@@ -99,6 +99,7 @@ def main():
             "licence": p["licence"],
             "description": p["description"],
             "source_url": "%s/%s/%s" % (base, pid, source),
+            **({"category": mkmod.port_category(p)} if mkmod.port_category(p) else {}),
             "image": pid + ".png",
             "files": [{"name": mod}],
         }

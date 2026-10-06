@@ -48,6 +48,18 @@ import zlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHERS = "media/project_eris/etc/project_eris/SUP/launchers/"
 MAINTAINER = "AutoBleem team"
+# the package types (the launcher's App categories): port.ini's optional `category`, written into the control file
+# (the launcher files the App there, as "<title> (mod)") and into the Store item
+CATEGORIES = ("games", "emulators", "tools", "media", "other", "packages")
+
+
+def port_category(p):
+    """The port's package type, lower case, "" when port.ini names none; anything but a known type is an error."""
+    value = p.get("category", "").strip().lower()
+    if value and value not in CATEGORIES:
+        raise SystemExit("port %s: category %r is not one of %s" % (p["id"], value, ", ".join(CATEGORIES)))
+    return value
+
 
 # ---------------------------------------------------------------------------------------------------------
 # the plain generated icon: a coloured square with the name in big pixel letters (a 5x7 font of our own)
@@ -642,6 +654,7 @@ def main():
             "Installed-Size: %d" % ((size_kb + 1023) // 1024),
             "Description: %s" % p["name"],
             " Type: USB_MOD",
+            *([" Category: %s" % port_category(p)] if port_category(p) else []),
             " %s" % desc[0],
             " Author: %s" % p["publisher"],
             " Platform: SONYPSC armhf",
