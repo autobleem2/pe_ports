@@ -14,6 +14,10 @@ a plain generated icon, SOURCE.txt (licence, source URL and commit, the sha256 o
 offer, the upstream copyright lines, our changes) and the licence texts. The source archive is NEVER inside the
 .mod: it is hosted next to it and SOURCE.txt names it.
 
+A data port (port.ini has a [package] section: game files, no program) is packed by `tools/mkmod.py <id> --stage DIR
+--out DIR` into out/<id>-<version>.zip instead - a package for the stick's Packages/ folder (packages spec 2.2, 2.3):
+the staged files as they are, plus package.ini, the generated icon and SOURCE.txt (no --src, no source archive).
+
 A .mod is a Debian archive (ar: debian-binary, control.tar.gz, data.tar.xz) whose data holds one launcher folder
 media/project_eris/etc/project_eris/SUP/launchers/<filename>/ - the form the launcher's proc_pe reads. Everything
 is deterministic (times from SOURCE_DATE_EPOCH or the repository's last commit, owner root).
@@ -31,12 +35,14 @@ import hashlib
 import io
 import lzma
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
 import time
+import zipfile
 import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -271,10 +277,31 @@ def launch_sh(cfg):
     return "\n".join(lines) + "\n"
 
 
+KIND_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")  # the packages spec's grammar of a content kind and of an id
+
+
+def check_kinds(value, what):
+    """The kinds of a `;` list ('dos-game;quake-id1'), each in the grammar of packages.md section 3.2 (max 40)."""
+    kinds = [k.strip() for k in value.split(";") if k.strip()]
+    for k in kinds:
+        if len(k) > 40 or not KIND_RE.match(k):
+            raise SystemExit("%s: %r is not a content kind (lower case, digits, single '-', 40 characters at most)" % (what, k))
+    return kinds
+
+
 def launcher_cfg(cfg):
     p = cfg["port"]
     lines = ['launcher_filename="%s"' % cfg["launcher"]["filename"], 'launcher_title="%s"' % p["name"],
              'launcher_publisher="%s"' % p["publisher"], 'launcher_year="%s"' % p["year"]]
+    # the engine's game-data kinds and data folders (packages spec 2.3): proc_pe copies them to app.ini's Uses=/PackageDir=
+    if p.get("uses", "").strip():
+        lines.append('launcher_uses="%s"' % ";".join(check_kinds(p["uses"], "port %s: uses" % p["id"])))
+    if p.get("package_dir", "").strip():
+        dirs = [d.strip() for d in p["package_dir"].split(";") if d.strip()]
+        for d in dirs:
+            if d.startswith("/") or ".." in d.split("/") or "\\" in d or '"' in d:
+                raise SystemExit("port %s: package_dir %r is not a folder inside the App" % (p["id"], d))
+        lines.append('launcher_package_dir="%s"' % ";".join(dirs))
     return "\n".join(lines) + "\n"
 
 
@@ -325,11 +352,177 @@ def source_txt(cfg, source_url, sha, digest, image):
 
 
 # ---------------------------------------------------------------------------------------------------------
+# a data port: a package (zip with package.ini) for Packages/ instead of a .mod (packages spec, 2.3)
+# ---------------------------------------------------------------------------------------------------------
+def is_package_port(cfg):
+    return cfg.has_section("package")
+
+
+def _plain(value, what, limit):
+    """A value of package.ini: one line, no '#' (a comment starts anywhere), at most `limit` characters."""
+    value = value.strip()
+    if not value or "\n" in value or "\r" in value or "#" in value or len(value) > limit:
+        raise SystemExit("package.ini %s: %r is empty, has a '#' or a line break, or is longer than %d" % (what, value, limit))
+    return value
+
+
+def _inside(path, what):
+    """A path inside the package: relative, '/' separators, no '..'."""
+    if (not path or path.startswith("/") or "\\" in path or ":" in path or ".." in path.split("/")
+            or any(c in path for c in "#\r\n|;")):
+        raise SystemExit("package.ini %s: %r is not a path inside the package" % (what, path))
+    return path
+
+
+def package_entries(cfg):
+    """The data port's [package] section as numbered games: a list of dicts (id, title, file, starts, mapper, dosbox)."""
+    pid = cfg["port"]["id"]
+    sec = cfg["package"]
+    kinds = check_kinds(sec.get("content_kind", ""), "port %s: content_kind" % pid)
+    if not kinds:
+        raise SystemExit("port %s: [package] needs content_kind" % pid)
+    games = []
+    for item in [g for g in sec.get("games", "").split(";") if g.strip()]:
+        parts = [x.strip() for x in item.split("|")]
+        if len(parts) != 3:
+            raise SystemExit("port %s: a game in games= is id|title|file, not %r" % (pid, item))
+        gid, title, file = parts
+        if len(gid) > 40 or not KIND_RE.match(gid):
+            raise SystemExit("port %s: game id %r is not [a-z0-9] with single '-' (40 at most)" % (pid, gid))
+        games.append({"id": gid, "title": _plain(title, "game title", 80), "file": _inside(file, "game file"), "kind": kinds[0]})
+    if not games:
+        raise SystemExit("port %s: [package] needs games=id|title|file;..." % pid)
+    if len({g["id"] for g in games}) != len(games):
+        raise SystemExit("port %s: two games with one id" % pid)
+    starts = []
+    for item in [s for s in sec.get("start", "").split(";") if s.strip()]:
+        file, _, title = item.partition("|")
+        starts.append((_inside(file.strip(), "start file"), _plain(title or file, "start title", 80)))
+    mapper = _inside(sec["mapper"].strip(), "mapper") if sec.get("mapper", "").strip() else ""
+    dosbox = {}
+    for key in sec:
+        if key.startswith("dosbox."):
+            name = key[len("dosbox."):]
+            if not re.match(r"^[a-z0-9]+$", name):
+                raise SystemExit("port %s: %s is not a DOSBox setting name" % (pid, key))
+            dosbox[name] = _plain(sec[key], key, 80)
+    if (starts or mapper or dosbox) and kinds[0] != "dos-game":
+        raise SystemExit("port %s: start=, mapper= and dosbox.* belong to the dos-game kind only" % pid)
+    for g in games:
+        g.update(starts=starts, mapper=mapper, dosbox=dosbox)
+    return kinds, games
+
+
+def package_ini(cfg, stage, image):
+    """The text of package.ini for the data port `cfg` over the staged files `stage` (every file named must be there)."""
+    p = cfg["port"]
+    kinds, games = package_entries(cfg)
+    must = [g["file"] for g in games] + [s[0] for g in games for s in g["starts"]] + [g["mapper"] for g in games if g["mapper"]]
+    for rel in must:
+        if not os.path.isfile(os.path.join(stage, *rel.split("/"))):
+            raise SystemExit("port %s: %s is not in the staged package" % (p["id"], rel))
+    pid = p["id"]
+    if len(pid) > 40 or not KIND_RE.match(pid):
+        raise SystemExit("port id %r is not a package id" % pid)
+    out = ["[package]", "Title=" + _plain(p["name"], "Title", 80), "Kind=" + ";".join(kinds), "Id=" + pid,
+           "Version=" + _plain(p["version"], "Version", 40), "Licence=" + _plain(p["licence"], "Licence", 120),
+           "Author=" + _plain(p["publisher"], "Author", 120), "Description=" + _plain(p["description"], "Description", 200),
+           "Image=" + image]
+    if cfg["package"].get("replaces", "").strip():
+        out.append("Replaces=" + ";".join(r.strip() for r in cfg["package"]["replaces"].split(";") if r.strip()))
+    for n, g in enumerate(games, 1):
+        out += ["Game%d.Id=%s" % (n, g["id"]), "Game%d.Title=%s" % (n, g["title"]), "Game%d.File=%s" % (n, g["file"])]
+        for m, (file, title) in enumerate(g["starts"], 1):
+            out += ["Game%d.Start%d.File=%s" % (n, m, file), "Game%d.Start%d.Title=%s" % (n, m, title)]
+        for name, value in sorted(g["dosbox"].items()):
+            out.append("Game%d.Dosbox.%s=%s" % (n, name.capitalize(), value))
+        if g["mapper"]:
+            out.append("Game%d.Mapper=%s" % (n, g["mapper"]))
+    return "\n".join(out) + "\n"
+
+
+def package_source_txt(cfg):
+    p, d = cfg["port"], cfg["data"]
+    out = ["SOURCE.txt - %s %s" % (p["name"], p["version"])]
+    out.append("=" * len(out[0]))
+    out += ["", "This package holds game data, not a program: there is no source code to offer.", "",
+            "Licence:           %s (the text is in the licences/ folder of this package)" % p["licence"],
+            "Where the files come from:", "  %s" % d["source_url"],
+            "  file %s, sha256 %s" % (d["archive_file"], d["archive_sha256"]), "",
+            "The game's own files are that archive's files, byte for byte, in the folder %s/ - nothing in them was" % d["game_folder"],
+            "changed, added or removed (the licence allows spreading them only that way). What AutoBleem added sits",
+            "outside that folder: package.ini (what the launcher reads), the pad map, the icon, licences/ and this file.", ""]
+    if d.get("licence_note", "").strip():
+        out += ["Licence note:"] + ["  " + part.strip() for part in d["licence_note"].split(";") if part.strip()] + [""]
+    return "\n".join(out)
+
+
+def make_package(cfg, stage, out_dir, mtime):
+    """out/<id>-<version>.zip from the staged package root `stage` (the game's files, the pad map, licences/ ... laid by
+    the port's build.sh): adds package.ini, the icon and SOURCE.txt and packs everything deterministically."""
+    p = cfg["port"]
+    pid, ver = p["id"], p["version"]
+    lic = os.path.join(stage, "licences")
+    if not os.path.isdir(lic) or not os.listdir(lic):
+        raise SystemExit("port %s: a package ships its licence texts in licences/ (build.sh lays them)" % pid)
+    image = pid + ".png"
+    ini = package_ini(cfg, stage, image)
+    with open(os.path.join(stage, "package.ini"), "w", newline="\n", encoding="utf-8") as f:
+        f.write(ini)
+    with open(os.path.join(stage, image), "wb") as f:
+        f.write(make_icon(pid, p["icon_text"].split("|")))
+    with open(os.path.join(stage, "SOURCE.txt"), "w", newline="\n", encoding="utf-8") as f:
+        f.write(package_source_txt(cfg))
+    names = []
+    for base, dirs, files in os.walk(stage):
+        dirs.sort()
+        rel = os.path.relpath(base, stage).replace(os.sep, "/")
+        if rel != ".":
+            names.append(rel + "/")
+        names += [(rel + "/" if rel != "." else "") + n for n in sorted(files)]
+    date = time.gmtime(max(mtime, 315532800))[:6]  # a zip cannot hold a time before 1980
+    path = os.path.join(out_dir, "%s-%s.zip" % (pid, ver))
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for name in sorted(names, key=lambda n: (n != "package.ini", n)):  # package.ini first, then by name
+            info = zipfile.ZipInfo(name, date)
+            info.create_system = 3
+            if name.endswith("/"):
+                info.external_attr = (0o40755 << 16) | 0x10
+                z.writestr(info, b"")
+            else:
+                info.external_attr = 0o100644 << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with open(os.path.join(stage, *name.split("/")), "rb") as fh:
+                    z.writestr(info, fh.read(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+    return path
+
+
+def main_package(a, cfg):
+    p = cfg["port"]
+    assert p["id"] == a.id, "port.ini id differs from the folder"
+    try:
+        head = run("git", "-c", "safe.directory=*", "-C", ROOT, "log", "-1", "--format=%ct").decode().split()
+        commit_time = int(head[0])
+    except Exception:
+        commit_time = 0
+    mtime = int(os.environ.get("SOURCE_DATE_EPOCH", commit_time))
+    os.makedirs(a.out, exist_ok=True)
+    work = tempfile.mkdtemp(prefix="mkpkg-")
+    try:
+        root = os.path.join(work, "pkg")
+        shutil.copytree(a.stage, root, symlinks=False)  # the stage stays as the build left it
+        path = make_package(cfg, root, a.out, mtime)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    print("%s  %d bytes  %s" % (os.path.basename(path), os.path.getsize(path), hashlib.sha256(open(path, "rb").read()).hexdigest()))
+
+
+# ---------------------------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("id")
     ap.add_argument("--stage", required=True)
-    ap.add_argument("--src", required=True)
+    ap.add_argument("--src", default="", help="the patched upstream (not for a data package)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -337,6 +530,10 @@ def main():
     cfg.optionxform = str
     ini = os.path.join(ROOT, "ports", a.id, "port.ini")
     cfg.read(ini, encoding="utf-8")
+    if is_package_port(cfg):
+        return main_package(a, cfg)
+    if not a.src:
+        sys.exit("--src is required")
     p = cfg["port"]
     pid, ver = p["id"], p["version"]
     assert pid == a.id, "port.ini id differs from the folder"

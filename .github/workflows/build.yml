@@ -122,6 +122,8 @@ jobs:
           ls -l out store-out
           for d in pe-ports/ports/*/; do
             id=$(basename "$d")
+            # a data port (a [package] section: a game's files as a package zip) has no program, so no source archive
+            if grep -q '^\[package\]' "$d/port.ini"; then continue; fi
             set -- "$PWD"/out/"$id"-*-source.tar.gz
             [ -f "$1" ] || { echo "no source archive for $id in this release" >&2; exit 1; }
             docker run --rm \

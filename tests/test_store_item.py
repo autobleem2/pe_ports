@@ -22,10 +22,25 @@ CK = "commanderkeen-" + port_version("commanderkeen")
 SOURCE = "https://autobleem.retromenele.pl/source/commanderkeen/" + CK + "-source.tar.gz"
 
 
+def is_data_port(pid):
+    """a data port (port.ini has a [package] section) builds a package zip, not a .mod"""
+    with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
+        return "[package]" in f.read()
+
+
+def all_ports():
+    ports = os.path.join(ROOT, "ports")
+    return sorted(d for d in os.listdir(ports) if os.path.isfile(os.path.join(ports, d, "port.ini")))
+
+
 def release(out, ports=("commanderkeen",), source=True):
     os.makedirs(out, exist_ok=True)
     for pid in ports:
         ver = port_version(pid)
+        if is_data_port(pid):
+            with open(os.path.join(out, "%s-%s.zip" % (pid, ver)), "wb") as f:
+                f.write(b"zip " + pid.encode())
+            continue
         with open(os.path.join(out, "%s-%s.mod" % (pid, ver)), "wb") as f:
             f.write(b"mod " + pid.encode())
         if source:
@@ -56,11 +71,13 @@ def test_descriptor_from_port_ini():
 
 
 def test_a_missing_package_stops_the_release():
+    ports = all_ports()
+    missing = ports[-1]
     with tempfile.TemporaryDirectory() as w:
-        release(os.path.join(w, "out"), ports=("commanderkeen", "openjazz", "openlara"))
+        release(os.path.join(w, "out"), ports=ports[:-1])
         r = run("--out", os.path.join(w, "out"), "--dest", os.path.join(w, "d"))
-        assert r.returncode != 0 and "tyrquake" in r.stderr and "incomplete" in r.stderr
-        release(os.path.join(w, "out"), ports=("tyrquake",))
+        assert r.returncode != 0 and missing in r.stderr and "incomplete" in r.stderr
+        release(os.path.join(w, "out"), ports=(missing,))
         assert run("--out", os.path.join(w, "out"), "--dest", os.path.join(w, "d2")).returncode == 0
 
 
@@ -85,12 +102,12 @@ def test_source_base_follows_ab_source_base():
                     reason="needs bash and autobleem-repo's tools")
 def test_release_publish_into_a_temp_site_tree():
     """the site job's two steps with --local: the source archives, then the store items; the index run lists them"""
-    ports = ("commanderkeen", "openjazz", "openlara", "tyrquake")
+    ports = tuple(p for p in all_ports() if not is_data_port(p))  # the data ports' package items: test_packages.py
     with tempfile.TemporaryDirectory() as w, tempfile.TemporaryDirectory() as site:
         out = os.path.join(w, "out")
         release(out, ports=ports)
         dest = os.path.join(w, "store-out")
-        assert run("--out", out, "--dest", dest).returncode == 0
+        assert run("--out", out, "--dest", dest, "--only", *ports).returncode == 0
         env = dict(os.environ, REPO_DIR=site, AB_REPO_URL="https://site")
         publish = [shutil.which("bash"), os.path.join(SITE_TOOLS, "repo_publish.sh"), "--local"]
         for pid in ports:
@@ -111,4 +128,4 @@ def test_release_publish_into_a_temp_site_tree():
             assert os.path.isfile(os.path.join(site, "source", i["source_url"].split("/source/", 1)[1]))
         with open(os.path.join(site, "store", "index.html"), encoding="utf-8") as f:
             page = f.read()
-        assert "PE Apps</h2>" in page and page.count("Source code") == 4
+        assert "PE Apps</h2>" in page and page.count("Source code") == len(ports)

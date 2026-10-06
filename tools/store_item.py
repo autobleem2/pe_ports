@@ -9,7 +9,10 @@ icon, the same as inside the package) and <id>.item.json: id pe/<id>, kind pe, t
 description from port.ini, `source_url` = the package's source archive on the site (AB_SOURCE_BASE, the address
 mkmod.py writes into SOURCE.txt) and the one .mod in files[] (the catalog adds its size and sha256 when the site
 indexes). A port without its .mod or its source archive in out/ is an error: a release is whole or not published
-(--only <id>... limits the ports). The source archive is never one of the files. Only the standard library.
+(--only <id>... limits the ports). The source archive is never one of the files. An engine port's `uses=` (the
+content kinds it runs) is written as `uses`. A data port (port.ini has a [package] section) makes a `package` item
+instead (packages spec, 8.1): id pkg/<id>, kind package, category packages, `provides` the content kinds, its one
+file the package zip, no source archive (the zip holds the game's own files). Only the standard library.
 """
 import argparse
 import configparser
@@ -22,6 +25,36 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import mkmod  # noqa: E402
+
+
+def package_item(cfg, out, dest):
+    """The `package` item of a data port: the zip (and the generated icon) go to dest, the descriptor beside them."""
+    p = cfg["port"]
+    pid, ver = p["id"], p["version"]
+    zipname = "%s-%s.zip" % (pid, ver)
+    if not os.path.isfile(os.path.join(out, zipname)):
+        sys.exit("%s is not in %s - the release is incomplete" % (zipname, out))
+    kinds, _games = mkmod.package_entries(cfg)
+    shutil.copyfile(os.path.join(out, zipname), os.path.join(dest, zipname))
+    with open(os.path.join(dest, pid + ".png"), "wb") as f:
+        f.write(mkmod.make_icon(pid, p["icon_text"].split("|")))
+    item = {
+        "id": "pkg/" + pid,
+        "kind": "package",
+        "title": p["name"],
+        "version": ver,
+        "author": p["publisher"],
+        "licence": p["licence"],
+        "description": p["description"],
+        "category": "packages",
+        "provides": kinds,
+        "image": pid + ".png",
+        "files": [{"name": zipname}],
+    }
+    with open(os.path.join(dest, pid + ".item.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump(item, f, indent=2)
+        f.write("\n")
+    print("%s: %s" % (pid, zipname))
 
 
 def main():
@@ -44,6 +77,9 @@ def main():
         p = cfg["port"]
         assert p["id"] == pid, "port.ini id differs from the folder: " + pid
         ver = p["version"]
+        if mkmod.is_package_port(cfg):
+            package_item(cfg, a.out, a.dest)
+            continue
         mod = "%s-%s.mod" % (pid, ver)
         source = "%s-%s-source.tar.gz" % (pid, ver)
         if not os.path.isfile(os.path.join(a.out, mod)):
@@ -65,6 +101,8 @@ def main():
             "image": pid + ".png",
             "files": [{"name": mod}],
         }
+        if p.get("uses", "").strip():  # the content kinds the engine runs (the Store's "Needs game data" hint)
+            item["uses"] = mkmod.check_kinds(p["uses"], "port %s: uses" % pid)
         with open(os.path.join(a.dest, pid + ".item.json"), "w", encoding="utf-8", newline="\n") as f:
             json.dump(item, f, indent=2)
             f.write("\n")
