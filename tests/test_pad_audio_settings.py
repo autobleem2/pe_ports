@@ -78,8 +78,19 @@ def test_lzdoom_openal_is_16_bit_and_found_by_the_engine():
     assert "alsoft.conf" in read(port_file("lzdoom", "build.sh"))
 
 
+def test_lzdoom_pad_files_never_unbind():
+    # while LZDoom starts (gamestate GS_STARTUP) C_DoCommand runs `bind` at once but stores `unbind` until the start-up
+    # is over, so an unbind in the -exec file wipes the bindings made after it: the pad's buttons were dead in the game
+    for name in sorted(os.listdir(port_file("lzdoom", "files", "psc"))):
+        text = read(port_file("lzdoom", "files", "psc", name))
+        assert not re.search(r"^\s*unbind\b", text, re.M), name
+    common = read(port_file("lzdoom", "files", "psc", "common.cfg"))
+    for key in ["Joy1", "Joy10", "Axis1Plus", "Axis2Minus", "POV1Up"]:
+        assert re.search(r'^bind %s ""$' % key, common, re.M)
+
+
 def test_lzdoom_version_is_bumped():
-    assert ini("lzdoom")[("port", "version")] == "3.84-3"
+    assert ini("lzdoom")[("port", "version")] == "3.84-4"
 
 
 def test_ioquake3_raw_joystick_patch_applies():
