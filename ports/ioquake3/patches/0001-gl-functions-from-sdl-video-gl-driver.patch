@@ -1,0 +1,72 @@
+diff --git a/code/sdl/sdl_glimp.c b/code/sdl/sdl_glimp.c
+index 4b284fdb..f27d9d4d 100644
+--- a/code/sdl/sdl_glimp.c
++++ b/code/sdl/sdl_glimp.c
+@@ -230,6 +230,34 @@ static void GLimp_DetectAvailableModes(void)
+ 	SDL_free( modes );
+ }
+ 
++/*
++===============
++GLimp_GetProcAddress
++
++The OpenGL function behind a name: from the library SDL_VIDEO_GL_DRIVER names when it is set (on the console that is
++gl4es, which gives OpenGL 1.x on top of the OpenGL ES context SDL made), else SDL's own answer. SDL itself asks that
++library first only for EGL 1.4 and older; this does not depend on the EGL version.
++===============
++*/
++static void *GLimp_GetProcAddress( const char *name ) {
++	static void *library;
++	static qboolean tried;
++	void *address = NULL;
++
++	if ( !tried ) {
++		const char *path = getenv( "SDL_VIDEO_GL_DRIVER" );
++		tried = qtrue;
++		if ( path && *path ) {
++			library = SDL_LoadObject( path );
++			ri.Printf( PRINT_ALL, "OpenGL functions from %s: %s\n", path, library ? "loaded" : "not loaded, using SDL's" );
++		}
++	}
++	if ( library ) {
++		address = SDL_LoadFunction( library, name );
++	}
++	return address ? address : SDL_GL_GetProcAddress( name );
++}
++
+ /*
+ ===============
+ GLimp_GetProcAddresses
+@@ -244,7 +272,7 @@ static qboolean GLimp_GetProcAddresses( qboolean fixedFunction ) {
+ #ifdef __SDL_NOGETPROCADDR__
+ #define GLE( ret, name, ... ) qgl##name = gl#name;
+ #else
+-#define GLE( ret, name, ... ) qgl##name = (name##proc *) SDL_GL_GetProcAddress("gl" #name); \
++#define GLE( ret, name, ... ) qgl##name = (name##proc *) GLimp_GetProcAddress("gl" #name); \
+ 	if ( qgl##name == NULL ) { \
+ 		ri.Printf( PRINT_ALL, "ERROR: Missing OpenGL function %s\n", "gl" #name ); \
+ 		success = qfalse; \
+@@ -885,9 +913,9 @@ static void GLimp_InitExtensions( qboolean fixedFunction )
+ 		{
+ 			if ( r_ext_multitexture->value )
+ 			{
+-				qglMultiTexCoord2fARB = SDL_GL_GetProcAddress( "glMultiTexCoord2fARB" );
+-				qglActiveTextureARB = SDL_GL_GetProcAddress( "glActiveTextureARB" );
+-				qglClientActiveTextureARB = SDL_GL_GetProcAddress( "glClientActiveTextureARB" );
++				qglMultiTexCoord2fARB = GLimp_GetProcAddress( "glMultiTexCoord2fARB" );
++				qglActiveTextureARB = GLimp_GetProcAddress( "glActiveTextureARB" );
++				qglClientActiveTextureARB = GLimp_GetProcAddress( "glClientActiveTextureARB" );
+ 
+ 				if ( qglActiveTextureARB )
+ 				{
+@@ -923,8 +951,8 @@ static void GLimp_InitExtensions( qboolean fixedFunction )
+ 			if ( r_ext_compiled_vertex_array->value )
+ 			{
+ 				ri.Printf( PRINT_ALL, "...using GL_EXT_compiled_vertex_array\n" );
+-				qglLockArraysEXT = ( void ( APIENTRY * )( GLint, GLint ) ) SDL_GL_GetProcAddress( "glLockArraysEXT" );
+-				qglUnlockArraysEXT = ( void ( APIENTRY * )( void ) ) SDL_GL_GetProcAddress( "glUnlockArraysEXT" );
++				qglLockArraysEXT = ( void ( APIENTRY * )( GLint, GLint ) ) GLimp_GetProcAddress( "glLockArraysEXT" );
++				qglUnlockArraysEXT = ( void ( APIENTRY * )( void ) ) GLimp_GetProcAddress( "glUnlockArraysEXT" );
+ 				if (!qglLockArraysEXT || !qglUnlockArraysEXT)
+ 				{
+ 					ri.Error (ERR_FATAL, "bad getprocaddress");
