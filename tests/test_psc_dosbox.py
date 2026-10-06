@@ -242,3 +242,19 @@ def test_the_shipped_pad_maps_name_only_events_dosbox_has():
                 assert name.startswith("key_") and name[4:] in events, line
                 for b in re.findall(r'"([^"]*)"', binds):
                     assert re.fullmatch(r"stick_0 (button [0-9]|axis [01] [01])", b), b
+
+
+def test_a_mapper_binding_buttons_above_3_needs_buttonwrap_off():
+    """with buttonwrap=true the mapper creates binds only for the emulated stick's 4 buttons (sdl_mapper.cpp,
+    CreateButtonBind) and silently drops `stick_0 button 4..9`: Start, Select and the shoulders were dead"""
+    import re
+    with open(os.path.join(FILES, "dosbox.conf"), encoding="utf-8") as f:
+        wrap = re.findall(r"^buttonwrap=(\w+)", f.read(), re.M)
+    assert len(wrap) == 1
+    high = []
+    for path in [os.path.join(FILES, "mapper.txt"), os.path.join(ROOT, "ports", "liero", "files", "mapper.txt"),
+                 os.path.join(ROOT, "ports", "xargon", "files", "mapper.txt")]:
+        with open(path, encoding="utf-8") as f:
+            high += [b for b in re.findall(r"stick_0 button ([0-9]+)", f.read()) if int(b) >= 4]
+    assert high, "the shipped mappers are expected to use the shoulder, Select and Start buttons"
+    assert wrap[0] == "false", "a mapper binds button %s but buttonwrap is %s" % (high[0], wrap[0])
