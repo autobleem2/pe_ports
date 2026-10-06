@@ -37,8 +37,18 @@ port_build() {
         "https://openal-soft.org/openal-releases/$oal.tar.bz2"
     mkdir -p "$BUILD_DIR/openal"
     tar -xjf "$ROOT/build_data/$oal.tar.bz2" -C "$BUILD_DIR/openal"
+    # its two generator programs run on the build machine: built first with the image's own compiler, where the
+    # project's build expects them (its own nested build would inherit the console compiler from the environment)
+    mkdir -p "$BUILD_DIR/openal/build/native-tools"
+    (
+        unset CC CXX STRIP AR PKG_CONFIG_LIBDIR SDL_PREFIX CFLAGS CXXFLAGS
+        export PATH="${PATH#"$PSC/sdl2/bin":}"
+        cd "$BUILD_DIR/openal/build/native-tools"
+        cmake -G Ninja "$BUILD_DIR/openal/$oal/native-tools"
+        ninja
+    )
     cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED \
+        -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_INSTALL=OFF \
         -DALSOFT_REQUIRE_ALSA=ON -DALSOFT_BACKEND_PULSEAUDIO=OFF -DALSOFT_BACKEND_OSS=OFF \
         -DALSOFT_BACKEND_SOLARIS=OFF -DALSOFT_BACKEND_SNDIO=OFF -DALSOFT_BACKEND_PORTAUDIO=OFF \

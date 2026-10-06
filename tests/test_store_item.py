@@ -61,16 +61,16 @@ def test_descriptor_from_port_ini():
 
 def test_requires_names_the_packages_to_install_first():
     with tempfile.TemporaryDirectory() as w:
-        release(os.path.join(w, "out"), ports=("ioquake3", "openarenadata", "commanderkeen"))
+        release(os.path.join(w, "out"), ports=("lzdoom", "freedoomdata", "commanderkeen"))
         r = run("--out", os.path.join(w, "out"), "--dest", os.path.join(w, "d"),
-                "--only", "ioquake3", "openarenadata", "commanderkeen")
+                "--only", "lzdoom", "freedoomdata", "commanderkeen")
         assert r.returncode == 0, r.stderr
         items = {}
-        for pid in ("ioquake3", "openarenadata", "commanderkeen"):
+        for pid in ("lzdoom", "freedoomdata", "commanderkeen"):
             with open(os.path.join(w, "d", pid + ".item.json"), encoding="utf-8") as f:
                 items[pid] = json.load(f)
-        assert items["ioquake3"]["requires"] == ["pe/openarenadata"]
-        assert "requires" not in items["openarenadata"] and "requires" not in items["commanderkeen"]
+        assert items["lzdoom"]["requires"] == ["pe/freedoomdata"]
+        assert "requires" not in items["freedoomdata"] and "requires" not in items["commanderkeen"]
 
 
 def test_a_missing_package_stops_the_release():

@@ -5,9 +5,9 @@
 #                      Heretic, ... anything *.wad there; the first by the order doom2, doom, plutonia, tnt, heretic,
 #                      hexen, then by name), else Freedoom from the "Freedoom data" App (freedoom2.wad); every
 #                      .wad/.pk3/.pk7/.zip in MODS is loaded as a mod (-file), by name. Names with spaces are skipped.
-#   lzdoom.ini         the engine's settings file, in the App's folder: this script sets, every run, full screen, the
-#                      software renderer (vid_renderer 0, shown through SDL; the OpenGL renderer is vid_renderer 1) and
-#                      the pad's axes (section [Joy:JS:0]); the engine adds everything else it saves.
+#   lzdoom.ini         the engine's settings file, in the App's folder: this script sets, every run, full screen and the
+#                      pad's axes (section [Joy:JS:0]); the engine adds everything else it saves. The picture is the
+#                      software renderer shown through SDL (the engine's default on ARM); vid_renderer=1 in the ini is the GL one.
 #   psc_pad.cfg        the key bindings of this run, made from files in psc/: the layout of the pad the App is run
 #                      with (AB_APP_PAD_MODE: x360-kernel / x360 = an Xbox 360 pad, else the console's own pad) and,
 #                      for the Xbox 360 layout, the style that suits player 1's pad - d-pad for the console's own pad,
@@ -105,16 +105,18 @@ if [ -f "$ini" ]; then
     awk '
         /^\[/ { sec = $0; if (sec == "[Joy:JS:0]") next }
         sec == "[Joy:JS:0]" { next }
-        sec == "[GlobalSettings]" && /^(fullscreen|vid_renderer|snd_mididevice)=/ { next }
+        sec == "[GlobalSettings]" && /^(fullscreen)=/ { next }
+        /^$/ { next }
+        /^\[/ && NR > 1 { print "" }
         { print }
     ' "$ini" > "$tmp" 2>/dev/null || : > "$tmp"
 else
     : > "$tmp"
 fi
 if grep -q '^\[GlobalSettings\]' "$tmp"; then
-    awk '{ print } /^\[GlobalSettings\]/ { print "fullscreen=true"; print "vid_renderer=0" }' "$tmp" > "$ini"
+    awk '{ print } /^\[GlobalSettings\]/ { print "fullscreen=true" }' "$tmp" > "$ini"
 else
-    { printf '[GlobalSettings]\nfullscreen=true\nvid_renderer=0\n\n'; cat "$tmp"; } > "$ini"
+    { printf '[GlobalSettings]\nfullscreen=true\n\n'; cat "$tmp"; } > "$ini"
 fi
 {
     echo
