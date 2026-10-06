@@ -8,7 +8,7 @@ GPL's source duties are met by our own build, not by a third party's binary.
 
 Wave 1 (this repository's first release): **OpenLara**, **Commander Genius** (Keen 1), **OpenJazz** (Jazz Jackrabbit
 1) and **TyrQuake** (Quake shareware). Then **ioquake3** (set up for OpenArena) and its separate data package
-**OpenArena data** (`requires=` in port.ini; `kind=data`, see below), and **LZDoom** (set up for Freedoom) with its data package **Freedoom data**.
+**OpenArena data** (`requires=` in port.ini; `kind=data`, see below), and **LZDoom** (set up for Freedoom) with its data package **Freedoom data**. And **BlastEm** (a Mega Drive emulator; the player brings the games).
 
 **DOS games** (APPS-10): **DOSBox** is an engine App (`Uses=dos-game`); **Liero** and **Xargon** are *data ports* -
 game files that come as **packages** (a zip with a `package.ini` for the stick's `Packages/` folder, packages spec
@@ -16,7 +16,7 @@ game files that come as **packages** (a zip with a `package.ini` for the stick's
 
 ```
 git clone --recurse-submodules <this repository>
-ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|dosbox|liero|xargon|all     # inside ghcr.io/autobleem2/autobleem-build
+ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|dosbox|liero|xargon|blastem|all     # inside ghcr.io/autobleem2/autobleem-build
 ```
 
 The result is in `out/`:
@@ -122,6 +122,7 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 | ioquake3 | psc-kernel | 0 | 1 | `files/psc/pad-psc.cfg`: Cross jump, Circle use item, Square crouch, Triangle scores, L1/R1 weapon, R2 fire, L2/Select look up/down, Start the menu; the d-pad turns and walks. With the pad mode x360-kernel (Game settings) `files/psc-pad.sh` picks d-pad or dual-analog bindings from player 1's pad |
 | lzdoom | psc-kernel | 0 | 1 | `files/psc/common.cfg` switches the joystick on (`use_joystick`); `files/psc/pad-psc.cfg`: d-pad up/down walk and left/right turn, Cross fire (and OK in the menus, `patches/0001-menu-psc-pad.patch`), R2 fire, Square use, Circle strafe (held, with the d-pad; Back in the menus), L2 run (held), L1/R1 weapon, Triangle automap, Select always run on/off, Start the menu (`files/psc-pad.sh` writes the axis map into lzdoom.ini). With the pad mode x360-kernel it picks d-pad or dual-analog bindings from player 1's pad |
 | dosbox | psc-kernel | 0 | 1 | DOSBox's own mapper (`files/mapper.txt`, or the game package's `mapper=` file): the d-pad is the arrows, Cross/Square/Start Enter, Circle/Select Escape; no keyboard mode of the pad needed |
+| blastem | psc-kernel | 0 | 1 | `patches/0001-psc-pad-mapping.patch`: an SDL game-controller mapping for the console pad; `patches/0002-psc-defaults.patch` binds it: Cross/Circle/Square = A/B/C, Triangle/L1/R1 = X/Y/Z, Start, Select = Mode, L2 and R2 open the menu, the d-pad on the half-axes |
 
 The DOS games' pad maps are the packages' own (`ports/liero/files/mapper.txt`, `ports/xargon/files/mapper.txt`): the
 keys each game's own documentation lists, on the same pad.

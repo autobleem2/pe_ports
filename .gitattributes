@@ -7,3 +7,5 @@
 *.md text eol=lf
 # shipped game data: byte for byte, never converted (the shareware licences say unmodified)
 ports/*/data/** binary
+# vendored upstream of a port that has no git repository to pin (BlastEm: a Mercurial export): byte for byte
+ports/blastem/upstream/** -text

@@ -1,0 +1,53 @@
+--- a/render_sdl.c
++++ b/render_sdl.c
+@@ -887,6 +887,27 @@
+ 	return guid_string;
+ }
+ 
++#ifdef AB_PSC
++//The PlayStation Classic's pad as the launcher hands it over (the console pad): ten buttons in Sony's order -
++//Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select, Start - and the d-pad on axes 0 and 1, no hat. SDL 2.0.18
++//has a mapping for it too ("Playstation Controller") but without the d-pad: this one replaces it (same GUID) and adds
++//the d-pad. By its shape: Cross/Circle/Square/Triangle are A/B/X/Y, L1/R1 the shoulders, L2/R2 the triggers, the d-pad half-axes the d-pad.
++static void add_console_pad_mapping(SDL_Joystick *joy)
++{
++	if (!joy || SDL_JoystickNumButtons(joy) != 10 || SDL_JoystickNumHats(joy) != 0 || SDL_JoystickNumAxes(joy) < 2) {
++		return;
++	}
++	char guid[33], mapping[256];
++	SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guid, sizeof(guid));
++	snprintf(mapping, sizeof(mapping), "%s,%s,platform:Linux,a:b2,b:b1,x:b3,y:b0,back:b8,start:b9,leftshoulder:b6,"
++		"rightshoulder:b7,lefttrigger:b4,righttrigger:b5,dpup:-a1,dpdown:+a1,dpleft:-a0,dpright:+a0",
++		guid, SDL_JoystickName(joy));
++	if (SDL_GameControllerAddMapping(mapping) >= 0) {
++		debug_message("Console pad: game controller mapping added\n");
++	}
++}
++#endif
++
+ SDL_GameController *render_get_controller(int index)
+ {
+ 	if (index >= MAX_JOYSTICKS || !joysticks[index]) {
+@@ -1051,6 +1072,9 @@
+ 			joysticks[index] = joy;
+ 			joystick_sdl_index[index] = event->jdevice.which;
+ 			joystick_index_locked[index] = 0;
++#ifdef AB_PSC
++			add_console_pad_mapping(joy);
++#endif
+ 			if (gc_events_enabled) {
+ 				controllers[index] = SDL_GameControllerOpen(event->jdevice.which);
+ 			}
+@@ -1547,6 +1571,12 @@
+ 		free(db_data);
+ 		debug_message("Added %d game controller mappings from gamecontrollerdb.txt\n", added);
+ 	}
++#ifdef AB_PSC
++	for (int i = 0; i < MAX_JOYSTICKS; i++)
++	{
++		add_console_pad_mapping(joysticks[i]);
++	}
++#endif
+ }
+ static int in_toggle;
+ 

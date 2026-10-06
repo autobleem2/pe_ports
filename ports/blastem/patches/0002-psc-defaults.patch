@@ -1,0 +1,61 @@
+--- a/default.cfg
++++ b/default.cfg
+@@ -58,13 +58,15 @@
+ 					right gamepads.n.right
+ 				}
+ 			}
++			#the PlayStation Classic's pad (render_sdl.c maps it to a, b, x, y, ...):
++			#Cross, Circle, Square = A, B, C; Triangle, L1, R1 = X, Y, Z (6 button games)
+ 			buttons {
+ 				a gamepads.n.a
+ 				b gamepads.n.b
+-				rightshoulder gamepads.n.c
+-				x gamepads.n.x
+-				y gamepads.n.y
+-				leftshoulder gamepads.n.z
++				x gamepads.n.c
++				y gamepads.n.x
++				leftshoulder gamepads.n.y
++				rightshoulder gamepads.n.z
+ 				back gamepads.n.mode
+ 				start gamepads.n.start
+ 				guide ui.menu
+@@ -75,8 +77,8 @@
+ 				lefty.negative gamepads.n.up
+ 				leftx.positive gamepads.n.right
+ 				leftx.negative gamepads.n.left
+-				lefttrigger ui.prev_speed
+-				righttrigger ui.next_speed
++				lefttrigger ui.menu
++				righttrigger ui.menu
+ 			}
+ 		}
+ 		ps4_6b_right {
+@@ -308,7 +310,7 @@
+ 	fragment_shader default.f.glsl
+ 	scanlines off
+ 	vsync off
+-	fullscreen off
++	fullscreen on
+ 	#forces an integer ratio between the emulated height and the height on screen
+ 	integer_scaling off
+ 	#setting gl to off, will force use of the SDL2 fallback renderer
+@@ -369,7 +371,8 @@
+ 	buffer 512
+ 	lowpass_cutoff 3390
+ 	#Use f32 for 32-bit floating point, s16 for signed 16-bit integer
+-	format f32
++	#the PlayStation Classic's sound device takes only s16 (32-bit and float are refused and BlastEm then quits)
++	format s16
+ }
+
+ clocks {
+@@ -392,7 +395,7 @@
+ 	rom menu.bin
+ 	#starting path for ROM browsing, accepts special variables $HOME, $EXEDIR
+ 	#and variables defined in the OS environment
+-	initial_path $HOME
++	initial_path $EXEDIR/roms
+ 	#if this is set to on, then the menu will remember the last path when visited
+ 	#if it's set to off, initial_path will always be used on startup
+ 	remember_path on
