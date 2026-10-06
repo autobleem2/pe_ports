@@ -10,3 +10,6 @@
 [submodule "ports/tyrquake/upstream"]
 	path = ports/tyrquake/upstream
 	url = git://disenchant.net/tyrquake
+[submodule "ports/lzdoom/upstream"]
+	path = ports/lzdoom/upstream
+	url = https://github.com/drfrag666/lzdoom
