@@ -13,3 +13,6 @@
 [submodule "ports/lzdoom/upstream"]
 	path = ports/lzdoom/upstream
 	url = https://github.com/drfrag666/lzdoom
+[submodule "ports/ioquake3/upstream"]
+	path = ports/ioquake3/upstream
+	url = https://github.com/ioquake/ioq3
