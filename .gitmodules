@@ -16,3 +16,6 @@
 [submodule "ports/ioquake3/upstream"]
 	path = ports/ioquake3/upstream
 	url = https://github.com/ioquake/ioq3
+[submodule "ports/dosbox/upstream"]
+	path = ports/dosbox/upstream
+	url = https://gitlab.com/modmyclassic/ports/dosbox.git

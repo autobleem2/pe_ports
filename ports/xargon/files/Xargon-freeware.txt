@@ -1,0 +1,16 @@
+Xargon - freeware notice
+========================
+
+Xargon (1994) was published by Epic MegaGames. Its author, Allen Pilgrim, owns the copyright and released the
+entire Xargon trilogy as freeware on 4 August 2008. His public statement, as quoted in the article
+https://en.wikipedia.org/wiki/Xargon:
+
+    "I own the copyright for the game and have released the entire trilogy as freeware."
+
+The same release put the source code of Kiloblaster and Xargon under a licence that lets anyone "use this in any way
+they choose" (Kiloblaster_and_Xargon_Freeware_License.txt, https://github.com/dos-games/vanilla-kiloblaster).
+
+The game's files in the XARGON/ folder are the registered v3.0 trilogy exactly as the RGB Classic Games site
+(https://classicdosgames.com/game/Xargon.html) hands them out: nothing in them was changed, added or removed.
+LICENSE.DOC and FILE_ID.DIZ in that folder are the 1994 texts ("not shareware") from before the declaration of 2008;
+they are left as they were. The game stays its author's.

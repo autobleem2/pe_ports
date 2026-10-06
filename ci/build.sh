@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds PE ports in the autobleem-build image (ghcr.io/autobleem2/autobleem-build) and packs them:
 #
-#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata    one port
+#   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|dosbox|liero|xargon    one port
 #   ci/build.sh all                                         every port in ports/
 #
 # For each port the result is, in out/:
@@ -9,6 +9,10 @@
 #                                       the allowed shareware data, SOURCE.txt and the licence text)
 #   <id>-<version>-source.tar.gz        the corresponding source (never part of the .mod): the pinned upstream and
 #                                       its submodules, our patches, these build scripts and the build image digest
+#
+# A data port (port.ini has a [package] section: liero, xargon) has no program and no upstream: its build.sh fetches
+# the game's archive against a pinned sha256 and lays the package's files into $STAGE, and mkmod.py packs the package
+# zip for the stick's Packages/ folder (packages spec, 2.3): out/<id>-<version>.zip, no source archive.
 #
 # A port is a folder ports/<id>/ (README.md "Layout"). Its upstream is a pinned submodule, never edited: each build
 # copies it into build/<id>/src and applies patches/*.patch there. Its build.sh defines port_build, which compiles
@@ -91,10 +95,27 @@ check_binary() {
 # SDL2 family; libudev and libxkbcommon are in the console's firmware (the 2020 mods needed them too)
 export PE_ALLOWED_LIBS='^(libc|libm|libdl|libpthread|librt|libresolv|libutil|ld-linux[-a-z0-9_.]*|libgcc_s|libstdc\+\+|libSDL2-2\.0|libSDL2_image-2\.0|libSDL2_mixer-2\.0|libSDL2_ttf-2\.0|libasound|libudev|libxkbcommon|libEGL|libGLESv2|libGL|libwayland-[a-z]+|libdrm)\.so'
 
+# a data port: the package zip (no program to check, nothing to compile, no source archive)
+build_package() { # build_package <id> <port dir>
+    export PORT_DIR=$2 BUILD_DIR=$ROOT/build/$1
+    export STAGE=$BUILD_DIR/stage
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$STAGE" out
+    unset -f port_build 2>/dev/null || true
+    # shellcheck disable=SC1091
+    . "$2/build.sh"
+    port_build
+    python3 tools/mkmod.py "$1" --stage "$STAGE" --out out
+}
+
 build_port() { # build_port <id>
     local id="$1" dir="$ROOT/ports/$1"
     [ -f "$dir/port.ini" ] || { echo "no such port: $id" >&2; exit 2; }
     banner "$id"
+    if grep -q '^\[package\]' "$dir/port.ini"; then
+        build_package "$id" "$dir"
+        return
+    fi
     [ -n "$(ls -A "$dir/upstream" 2>/dev/null)" ] || { echo "ports/$id/upstream is empty: git submodule update --init --recursive" >&2; exit 1; }
 
     export PORT_DIR=$dir BUILD_DIR=$ROOT/build/$id

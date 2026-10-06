@@ -10,9 +10,13 @@ Wave 1 (this repository's first release): **OpenLara**, **Commander Genius** (Ke
 1) and **TyrQuake** (Quake shareware). Then **ioquake3** (set up for OpenArena) and its separate data package
 **OpenArena data** (`requires=` in port.ini; `kind=data`, see below), and **LZDoom** (set up for Freedoom) with its data package **Freedoom data**.
 
+**DOS games** (APPS-10): **DOSBox** is an engine App (`Uses=dos-game`); **Liero** and **Xargon** are *data ports* -
+game files that come as **packages** (a zip with a `package.ini` for the stick's `Packages/` folder, packages spec
+`docs/packages.md` of the hub), built here and listed in the Store as `package` items.
+
 ```
 git clone --recurse-submodules <this repository>
-ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|all     # inside ghcr.io/autobleem2/autobleem-build
+ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|dosbox|liero|xargon|all     # inside ghcr.io/autobleem2/autobleem-build
 ```
 
 The result is in `out/`:
@@ -21,6 +25,7 @@ The result is in `out/`:
 |---|---|
 | `<id>-<version>.mod` | the package: the program, its launcher files, the allowed shareware data, `SOURCE.txt`, `licences/` |
 | `<id>-<version>-source.tar.gz` | the corresponding source: the pinned upstream and its submodules, our patches, these build scripts, `BUILD-INFO.txt` with the build image's digest |
+| `<id>-<version>.zip` | a **data port's** package (liero, xargon): `package.ini`, the game's files unchanged, our pad map, `licences/`, `SOURCE.txt` (where the files come from); no source archive - there is no program |
 
 On the build server: `docker run --rm -u $(id -u):$(id -g) -v $PWD:/src -w /src -e AB_BUILD_IMAGE_DIGEST=<RepoDigest>
 ghcr.io/autobleem2/autobleem-build:develop ci/build.sh all`, then delete `build/`.
@@ -30,7 +35,9 @@ ghcr.io/autobleem2/autobleem-build:develop ci/build.sh all`, then delete `build/
 ```
 ci/build.sh                 builds a port in the image (gcc-6 against the console's sysroot), checks the binary,
                             calls tools/mkmod.py
-tools/mkmod.py              packs the .mod and the source archive; writes launch.sh, launcher.cfg, the icon, SOURCE.txt
+tools/mkmod.py              packs the .mod and the source archive; writes launch.sh, launcher.cfg, the icon, SOURCE.txt;
+                            for a data port packs the package zip and writes its package.ini
+tools/store_item.py         the Store items: `pe` for a .mod, `package` for a data port's zip
 ports/<id>/
     upstream/               the program's source: a git submodule pinned to an exact commit, never edited
     patches/*.patch         our changes over it (applied to a copy at build time)
@@ -51,7 +58,26 @@ the build and the source archive), optional `requires` (port ids that must be in
 `requires`), optional `kind=data` (a package of game files with no program: `ci/build.sh` checks no binary; its
 `ports/<id>/upstream/` holds only a note naming the pinned archive the build fetches) and `xz_preset` (the package's
 xz level, 9 unless the data is already compressed). `[launcher]` the `filename` (also the key of the program in the launcher's
-compatibility list `rc/pe_compat.ini`), the `binary`, `args`, `env`. `[pad]` and `[data]` as below.
+compatibility list `rc/pe_compat.ini`), the `binary`, `args`, `env`, `pre` (`|`-separated lines run before the
+program; a script of the package is sourced there). `[pad]` and `[data]` as below.
+
+An engine that runs game packages says so in `[port]`: `uses=` (a `;` list of content kinds - lower case, digits,
+single `-`, e.g. `dos-game`) goes to `launcher.cfg` as `launcher_uses` (proc_pe makes it `Uses=` of the App) and to the
+Store item as `uses`; `package_dir=` (folders of the App that hold its own game data) as `launcher_package_dir`;
+`category=` (`games`, `emulators`, ...) is the App's type in the launcher's lists.
+
+### Data ports (game files as packages)
+
+A port whose `port.ini` has a `[package]` section has **no program, no `upstream/`, no `[launcher]`**: its `build.sh`
+fetches the game's archive with `fetch` against a **pinned sha256** (the `archive_sha256` of `[data]`, read from
+there), lays the files into `$STAGE` (the package's root: the game's files unchanged in their own folder, a pad map,
+`licences/`) and `ci/build.sh` calls `mkmod.py`, which writes `package.ini` and the generated icon and `SOURCE.txt`
+and packs `out/<id>-<version>.zip` (the same bytes every time). `[package]`: `content_kind` (one kind),
+`games=id|title|file;...` (paths inside the package), `start=file|title;...` (the programs that start the game: the
+game, its setup - the launcher asks when there are two or more), `mapper=` (the game's pad map) and `dosbox.<name>=`
+(`cycles`, `memsize`, `sound` - the DOSBox engine's per-game settings; `start`, `mapper` and `dosbox.*` for the
+`dos-game` kind only), `replaces=`. `[data]`: `source_url`, `archive_file`, `archive_sha256`, `game_folder`,
+`licence_note`. A game's files are **never** changed: what a port adds sits outside the game's folder.
 
 ### What a package is
 
@@ -87,6 +113,10 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 | tyrquake | psc-kernel | 0 | 1 | the 2020 mapping as an SDL game controller (`patches/0002-sdl-gamecontroller.patch`, `files/config.cfg`, `files/gamecontrollerdb.txt`): d-pad up/down walk, left/right turn (pad choice X, a pad with only a d-pad) or strafe (O, analog sticks; the left stick walks and strafes, the right stick turns and looks), Cross centre view, Square look down, Triangle look up, Circle strafe, Select free look, Start the menu, L1/R1 previous/next weapon, L2 jump, R2 fire |
 | ioquake3 | psc-kernel | 0 | 1 | `files/psc/pad-psc.cfg`: Cross jump, Circle use item, Square crouch, Triangle scores, L1/R1 weapon, R2 fire, L2/Select look up/down, Start the menu; the d-pad turns and walks. With the pad mode x360-kernel (Game settings) `files/psc-pad.sh` picks d-pad or dual-analog bindings from player 1's pad |
 | lzdoom | psc-kernel | 0 | 1 | `files/psc/common.cfg` switches the joystick on (`use_joystick`); `files/psc/pad-psc.cfg`: d-pad up/down walk and left/right turn, Cross fire (and OK in the menus, `patches/0001-menu-psc-pad.patch`), R2 fire, Square use, Circle strafe (held, with the d-pad; Back in the menus), L2 run (held), L1/R1 weapon, Triangle automap, Select always run on/off, Start the menu (`files/psc-pad.sh` writes the axis map into lzdoom.ini). With the pad mode x360-kernel it picks d-pad or dual-analog bindings from player 1's pad |
+| dosbox | psc-kernel | 0 | 1 | DOSBox's own mapper (`files/mapper.txt`, or the game package's `mapper=` file): the d-pad is the arrows, Cross/Square/Start Enter, Circle/Select Escape; no keyboard mode of the pad needed |
+
+The DOS games' pad maps are the packages' own (`ports/liero/files/mapper.txt`, `ports/xargon/files/mapper.txt`): the
+keys each game's own documentation lists, on the same pad.
 
 ### Where the source goes
 
