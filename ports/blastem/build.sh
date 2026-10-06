@@ -4,9 +4,8 @@
 # Sourced by ci/build.sh with $SRC (patched upstream), $STAGE (the launcher folder's files), $PORT_DIR.
 port_build() {
     chmod +x "$SRC/cpu_dsl.py"
-    # sdl2.pc is the launcher's SDL2; glesv2.pc is the console sysroot's (its -I/usr/include would be the host's)
+    # sdl2.pc is the launcher's SDL2, glesv2.pc the console sysroot's (pkg-config drops its -I/usr/include)
     export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$PSC/sysroot/usr/lib/arm-linux-gnueabihf/pkgconfig"
-    export PKG_CONFIG_SYSROOT_DIR="$PSC/sysroot"
     # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
     make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
         OPT="-O2 -flto=$JOBS $PSC_FLAGS -DAB_PSC"
