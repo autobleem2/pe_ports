@@ -12,7 +12,7 @@ port_build() {
     export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$BUILD_DIR/pc"
     # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
     make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
-        OPT="-O2 -flto=$JOBS $PSC_FLAGS -DAB_PSC"
+        OPT="-O2 -flto=$JOBS $PSC_FLAGS -marm -DAB_PSC"
     cp "$SRC/blastem" "$STAGE/blastem"
     "$STRIP" "$STAGE/blastem"
 
