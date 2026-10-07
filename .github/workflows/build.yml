@@ -40,16 +40,20 @@ jobs:
           docker pull "$image"
           echo "AB_BUILD_IMAGE=$image" >> "$GITHUB_ENV"
           echo "AB_BUILD_IMAGE_DIGEST=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}' | sed 's/.*@//')" >> "$GITHUB_ENV"
-      - name: Build every port
+      - name: Build every port (the console, then the Raspberry Pi 32-bit: the engines again, the game data is shared)
         run: |
-          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
-            -e AB_BUILD_IMAGE -e AB_BUILD_IMAGE_DIGEST "$AB_BUILD_IMAGE" ci/build.sh all
+          for target in psc rpi; do
+            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
+              -e AB_BUILD_IMAGE -e AB_BUILD_IMAGE_DIGEST "$AB_BUILD_IMAGE" ci/build.sh --target "$target" all
+          done
       - name: Every package comes with its source archive
         run: |
           ls -l out
           n=0
           for m in out/*.mod; do
-            [ -f "${m%.mod}-source.tar.gz" ] || { echo "no source archive for $m" >&2; exit 1; }
+            # <id>-<version>.mod (the console) and <id>-<version>-rpi.mod (the Pi) share one source archive
+            src=${m%.mod}; src=${src%-rpi}
+            [ -f "$src-source.tar.gz" ] || { echo "no source archive for $m" >&2; exit 1; }
             n=$((n+1))
           done
           [ "$n" -ge 1 ] || { echo "no packages built" >&2; exit 1; }
@@ -89,7 +93,8 @@ jobs:
 
   # the download site (a v* release only - nightlies stay GitHub pre-release assets): the source archives go to
   # source/<id>/ (the address each package's SOURCE.txt names; kept at least 3 years after the item's last release),
-  # then the .mod, its icon and its `pe` item descriptor (tools/store_item.py) to the Store's PSC catalog, store/psc/;
+  # then the .mod, its icon and its `pe` item descriptor (tools/store_item.py) to the Store's PSC catalog, store/psc/
+  # (and the Raspberry Pi 32-bit's engines, <id>-<version>-rpi.mod with the same game-data packages, to store/rpi/);
   # the site's index run lists them in the catalog and on the Store page. All of it or nothing: store_item.py stops
   # when a port's package or source is missing, and it runs before anything is published. On the psc-build runner,
   # where the site's tree is, in the build image: the way ext_store's `site` job publishes. The publish tools come
@@ -115,7 +120,8 @@ jobs:
       - name: The Store items (all or nothing)
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD/pe-ports" ghcr.io/autobleem2/autobleem-build:latest \
-            python3 tools/store_item.py --out "$PWD/out" --dest "$PWD/store-out"
+            sh -c 'python3 tools/store_item.py --out "$1/out" --dest "$1/store-out" &&
+                   python3 tools/store_item.py --target rpi --out "$1/out" --dest "$1/store-out-rpi"' sh "$PWD"
       - name: Publish the source archives and the Store items to the download site
         run: |
           set -euo pipefail
@@ -137,3 +143,9 @@ jobs:
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
             ghcr.io/autobleem2/autobleem-build:latest \
             bash tools/repo_publish.sh --local store psc "$PWD"/store-out/*
+          # the Raspberry Pi 32-bit's catalog: its engines and the same game-data packages
+          docker run --rm \
+            -v "$PWD:$PWD" -w "$PWD/autobleem-repo-tools" -v "$AB_REPO_DIR:$AB_REPO_DIR" -e REPO_DIR="$AB_REPO_DIR" \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            ghcr.io/autobleem2/autobleem-build:latest \
+            bash tools/repo_publish.sh --local store rpi "$PWD"/store-out-rpi/*

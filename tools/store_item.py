@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Write the AutoBleem Store's `pe` items for a release's packages (autobleem-repo CLAUDE.md, "The AutoBleem
-Store's catalog"), ready for `repo_publish.sh store psc ...`:
+Store's catalog"), ready for `repo_publish.sh store psc ...` (`--target rpi`: `store rpi ...`, the Raspberry Pi 32-bit's catalog):
 
     tools/store_item.py --out out --dest store-out
 
@@ -64,6 +64,9 @@ def main():
     ap.add_argument("--dest", required=True, help="where the descriptors, icons and .mod files go")
     ap.add_argument("--ports", default=os.path.join(ROOT, "ports"))
     ap.add_argument("--only", nargs="*", help="port ids (default: every port)")
+    ap.add_argument("--target", choices=sorted(mkmod.TARGETS), default="psc",
+                    help="the Store catalog the items are for (store/<target>/): rpi takes the <id>-<version>-rpi.mod of every "
+                         "engine; game-data ports are the same package on every machine (--out holds the psc build's too)")
     a = ap.parse_args()
 
     base = os.environ.get("AB_SOURCE_BASE", "https://autobleem.retromenele.pl/source").rstrip("/")
@@ -81,7 +84,8 @@ def main():
         if mkmod.is_package_port(cfg):
             package_item(cfg, a.out, a.dest)
             continue
-        mod = "%s-%s.mod" % (pid, ver)
+        # a data mod (game files, no program) is one package for every machine: the psc build's file
+        mod = mkmod.mod_filename(pid, ver, "psc" if mkmod.is_data_mod(cfg) else a.target)
         source = "%s-%s-source.tar.gz" % (pid, ver)
         if not os.path.isfile(os.path.join(a.out, mod)):
             sys.exit("%s is not in %s - the release is incomplete" % (mod, a.out))

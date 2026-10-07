@@ -10,7 +10,7 @@
 port_build() {
     # BUILD_DIR is the Makefile's own variable for its output folder too (ci/build.sh exports one): name it
     local obj="$BUILD_DIR/obj"
-    CFLAGS="$PSC_FLAGS -marm" make -C "$SRC" -j "$JOBS" release BUILD_DIR="$obj" \
+    CFLAGS="$ARM_FLAGS -marm" make -C "$SRC" -j "$JOBS" release BUILD_DIR="$obj" \
         PLATFORM=linux ARCH=armv7l COMPILE_ARCH=armv7l CROSS_COMPILING=1 CC="$CC" \
         USE_INTERNAL_LIBS=1 USE_LOCAL_HEADERS=1 \
         USE_OPENAL=0 USE_CURL=0 USE_VOIP=0 USE_MUMBLE=0 USE_FREETYPE=0 USE_RENDERER_DLOPEN=1 \
@@ -34,7 +34,7 @@ port_build() {
     fetch "$AB_DEPS_BASE/gl4es/$g4.tar.gz"         dca1d897e492a0cb163a3390f273fbd4cc7ab2367d236d93dc2b321ce108ed5c "$g4.tar.gz"         "https://github.com/ptitSeb/gl4es/archive/refs/tags/v1.1.6.tar.gz"
     mkdir -p "$BUILD_DIR/gl4es"
     tar -xzf "$ROOT/build_data/$g4.tar.gz" -C "$BUILD_DIR/gl4es"
-    cmake -S "$BUILD_DIR/gl4es/$g4" -B "$BUILD_DIR/gl4es/build" -DCMAKE_BUILD_TYPE=Release         -DCMAKE_TOOLCHAIN_FILE="$PSC/toolchain.cmake" -DCMAKE_SKIP_RPATH=ON -DCMAKE_C_FLAGS="$PSC_FLAGS"         -DNOX11=ON -DNOEGL=ON -DDEFAULT_ES=2
+    cmake -S "$BUILD_DIR/gl4es/$g4" -B "$BUILD_DIR/gl4es/build" -DCMAKE_BUILD_TYPE=Release         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_PLAIN" -DCMAKE_SKIP_RPATH=ON -DCMAKE_C_FLAGS="$ARM_FLAGS"         -DNOX11=ON -DNOEGL=ON -DDEFAULT_ES=2
     make -C "$BUILD_DIR/gl4es/build" -j "$JOBS"
     mkdir -p "$STAGE/lib"
     cp -L "$BUILD_DIR/gl4es/$g4/lib/libGL.so.1" "$STAGE/lib/libGL.so.1"
