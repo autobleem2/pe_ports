@@ -129,7 +129,7 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 The DOS games' pad maps are the packages' own (`ports/liero/files/mapper.txt`, `ports/xargon/files/mapper.txt`): the
 keys each game's own documentation lists, on the same pad.
 
-### The Raspberry Pi 32-bit (`--target rpi`)
+### The Linux targets: Raspberry Pi 32-bit (`--target rpi`), Raspberry Pi 64-bit (`--target rpi64`), PC stick (`--target pcusb`)
 
 The eight engines (BlastEm, Commander Genius, DOSBox, ioquake3, LZDoom, OpenJazz, OpenLara, TyrQuake) are also built for the
 Pi 400 (Raspberry Pi OS armhf): `ci/build.sh --target rpi <port>|all` in the same image, with its `arm-linux-gnueabihf`
@@ -137,22 +137,27 @@ compiler against the Debian 12 armhf libraries (the system's SDL2, GLES2, EGL, A
 the CMake toolchain file of the CMake ports and of gl4es / OpenAL Soft. The result is `<id>-<version>-rpi.mod`, a package of
 the same format with `Platform: RPI armhf` in the control file (`proc_pe` turns it into an App with `Exec.rpi=run.sh`, so
 a machine lists only its own packages) and the same source archive as the console's (its `BUILD-INFO.txt` names both
-toolchains). The game data (`freedoomdata`, `openarenadata`, the DOS games) is the same package on every machine and is not
-rebuilt: `--target rpi` skips those ports and `tools/store_item.py --target rpi` takes their files from the console's build.
-What differs per target in a port: `NNNN-name.psc.patch` / `.rpi.patch` apply to one target only (the rest to both, in name
-order), `port.ini` takes `args.rpi=`, `env.rpi=`, `pre.rpi=` and `changes.rpi=` next to the common keys, and `build.sh` reads
-`$TARGET`. The pad is the same: the Pi runs the launcher's virtual console pad (`psc-kernel`), so the pad patches and bindings
+toolchains). The 64-bit Pi (`--target rpi64`, `<id>-<version>-rpi64.mod`, `Platform: RPI64 arm64`, `Exec.rpi64=run.sh`,
+`aarch64-linux-gnu`, `ci/rpi64.cmake`) and the PC stick (`--target pcusb`, `<id>-<version>-pcusb.mod`, `Platform: PCUSB i386`,
+`Exec.pcusb=run.sh`, `i686-linux-gnu` with `-march=i686 -msse2`, `ci/pcusb.cmake`) are built the same way in the same image
+against its arm64 / i386 libraries, and run on their own system SDL2. The game data (`freedoomdata`, `openarenadata`, the DOS games) is the same package on every machine and is not
+rebuilt: the Linux targets skip those ports and `tools/store_item.py --target <target>` takes their files from the console's build.
+What differs per target in a port: `NNNN-name.psc.patch` is the console's, `.linux.patch` is every Linux target's (rpi, rpi64,
+pcusb), `.rpi.patch` / `.rpi64.patch` / `.pcusb.patch` one machine's (the rest apply to all, in name order); `port.ini` takes
+`args.<t>=`, `env.<t>=`, `pre.<t>=`, `binary.<t>=` and `changes.<t>=` next to the common keys, `<t>` being a target or `linux`
+(looked up as target, then `linux`, then the plain key), and `build.sh` reads `$TARGET`, `$CPU_FLAGS` and, for the Linux
+targets, `$MULTIARCH` / `$TRIPLET`. The pad is the same: the Pi runs the launcher's virtual console pad (`psc-kernel`), so the pad patches and bindings
 are shared; the launcher's Pi package carries the PE runner (`rc/pe_run.sh`) these packages start through.
 
-| port | what the Pi build changes |
+| port | what the Linux builds change |
 |---|---|
-| blastem | the menu uses Nuklear's built-in font only (`patches/0006-builtin-font.rpi.patch`: DejaVu Sans, which fontconfig names first on a Pi, aborts Nuklear's font baker); portable cores, GLES2 through SDL2; `pkg-config` finds the armhf `glesv2.pc` itself |
+| blastem | the menu uses Nuklear's built-in font only (`patches/0006-builtin-font.linux.patch`: DejaVu Sans, which fontconfig names first on a Pi, aborts Nuklear's font baker; the PC stick has fontconfig too); portable cores on every target (the recompiler is x86 and untested here), GLES2 through SDL2; `pkg-config` finds the target's `glesv2.pc` itself |
 | commanderkeen | `ci/rpi.cmake`, the system's SDL2 family |
-| dosbox | `-std=gnu++14` (the console's gcc 6 dialect; gcc 12 defaults to C++17, which refuses the tree's exception specifications) |
-| ioquake3 | gl4es is built for the Pi too and sits on the system SDL's KMSDRM GLES2 context |
+| dosbox | `-std=gnu++14` (the console's gcc 6 dialect; gcc 12 defaults to C++17, which refuses the tree's exception specifications); rpi64: no recompiler (dynrec has no aarch64 back end), config.h patched for a 64-bit CPU; pcusb: the x86 dynamic core and FPU, no PIE |
+| ioquake3 | gl4es is built for each machine and sits on the system SDL's KMSDRM GLES2 context; the program is `ioquake3.<ARCH>` (armv7l, aarch64, x86 - `binary.<t>`); aarch64 interprets the game's QVMs |
 | lzdoom | `ci/rpi.cmake`; OpenAL Soft is built for the Pi (ALSA) and ships in `lib/` |
 | openjazz | nothing |
-| openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder; `patches/0002-sdl2-log-errors.rpi.patch` logs SDL's errors; the launch script shows a text screen and stops when the Tomb Raider data is missing (`pre.rpi`) |
+| openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder; `patches/0002-sdl2-log-errors.linux.patch` logs SDL's errors; the launch script shows a text screen and stops when the Tomb Raider data is missing (`pre.linux`) |
 | tyrquake | the console's ABGR8888 / desktop-size patch is not applied |
 
 ### Where the source goes

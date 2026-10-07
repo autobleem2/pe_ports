@@ -1,4 +1,5 @@
-"""The Raspberry Pi 32-bit target (APPS-13): `--target rpi` of ci/build.sh, tools/mkmod.py and tools/store_item.py.
+"""The Linux targets (APPS-13): `--target rpi` (Raspberry Pi 32-bit), `rpi64` (Raspberry Pi 64-bit) and `pcusb` (the PC stick,
+i386) of ci/build.sh, tools/mkmod.py and tools/store_item.py.
 
 The package keeps the .mod format with a Platform line of its own (proc_pe lists an App only on the machine its Platform
 names); the console's package stays what it was (name, control file, launch.sh); one source archive serves both; game
@@ -25,6 +26,12 @@ MKMOD = os.path.join(ROOT, "tools", "mkmod.py")
 STORE_ITEM = os.path.join(ROOT, "tools", "store_item.py")
 LAUNCHERS = "media/project_eris/etc/project_eris/SUP/launchers/"
 ENGINES = ("blastem", "commanderkeen", "dosbox", "ioquake3", "lzdoom", "openjazz", "openlara", "tyrquake")
+# target -> (Platform line, Architecture, how SOURCE.txt names the machine)
+LINUX = {
+    "rpi": ("RPI armhf", "armhf", "the Raspberry Pi 32-bit"),
+    "rpi64": ("RPI64 arm64", "arm64", "the Raspberry Pi 64-bit"),
+    "pcusb": ("PCUSB i386", "i386", "the PC stick"),
+}
 
 
 def load(pid):
@@ -40,7 +47,7 @@ def build(pid, target, work):
     stage, src, out = (os.path.join(work, n) for n in ("stage", "src", "out"))
     os.makedirs(src, exist_ok=True)
     os.makedirs(stage, exist_ok=True)
-    with open(os.path.join(stage, cfg["launcher"]["binary"]), "wb") as f:
+    with open(os.path.join(stage, mkmod.launcher_value(cfg, "binary", target or "psc")), "wb") as f:
         f.write(b"\x7fELF" + bytes(range(100)))
     for lic in cfg["port"]["licence_files"].split():
         os.makedirs(os.path.dirname(os.path.join(src, lic)), exist_ok=True)
@@ -89,21 +96,23 @@ def test_the_console_package_is_what_it_was():
         assert "built for the Raspberry Pi" not in files["SOURCE.txt"].decode()
 
 
+@pytest.mark.parametrize("target", sorted(LINUX))
 @pytest.mark.parametrize("pid", ENGINES)
-def test_the_pi_package_names_its_machine(pid):
+def test_the_package_names_its_machine(pid, target):
+    platform, arch, machine = LINUX[target]
     with tempfile.TemporaryDirectory() as w:
-        mod, _ = build(pid, "rpi", w)
+        mod, _ = build(pid, target, w)
         ver = load(pid)["port"]["version"]
-        assert os.path.basename(mod) == "%s-%s-rpi.mod" % (pid, ver)
+        assert os.path.basename(mod) == "%s-%s-%s.mod" % (pid, ver, target)
         control, files = unpack(mod)
-        assert " Platform: RPI armhf\n" in control and "SONYPSC" not in control
-        assert "Architecture: armhf\n" in control and "Package: %s\n" % pid in control
+        assert " Platform: %s\n" % platform in control and "SONYPSC" not in control
+        assert "Architecture: %s\n" % arch in control and "Package: %s\n" % pid in control
         launch = files["launch.sh"].decode()
         # the console's power flag does not exist on the Pi: no error text from the redirections
         assert 'echo -n 2 > "/data/power/disable" 2>/dev/null\n' in launch
         assert 'echo -n 1 > "/data/power/disable" 2>/dev/null\n' in launch
         source = files["SOURCE.txt"].decode()
-        assert "built for the Raspberry Pi 32-bit" in source and "--target rpi" in source
+        assert "built for %s" % machine in source and "--target %s" % target in source
         assert files["launcher.cfg"].decode().startswith('launcher_filename="%s"' % load(pid)["launcher"]["filename"])
 
 
@@ -111,32 +120,53 @@ def test_one_source_archive_serves_both_targets():
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         _, src_psc = build("tyrquake", "psc", a)
         _, src_rpi = build("tyrquake", "rpi", b)
-        with open(src_psc, "rb") as f1, open(src_rpi, "rb") as f2:
-            assert f1.read() == f2.read(), "the archive is the same file whichever target packed it (never replaced with other bytes)"
+        with tempfile.TemporaryDirectory() as c, tempfile.TemporaryDirectory() as d:
+            _, src_rpi64 = build("tyrquake", "rpi64", c)
+            _, src_pcusb = build("tyrquake", "pcusb", d)
+            with open(src_psc, "rb") as f1, open(src_rpi, "rb") as f2, open(src_rpi64, "rb") as f3, open(src_pcusb, "rb") as f4:
+                assert f1.read() == f2.read() == f3.read() == f4.read(), \
+                    "the archive is the same file whichever target packed it (never replaced with other bytes)"
         with tarfile.open(src_rpi) as t:
             names = t.getnames()
             info = t.extractfile([n for n in names if n.endswith("BUILD-INFO.txt")][0]).read().decode()
-        assert any(n.endswith("/ci/rpi.cmake") for n in names), "the Pi's toolchain file is part of the source"
-        assert "toolchain (psc):" in info and "toolchain (rpi):" in info and "[--target psc|rpi]" in info
+        for cmake in ("rpi", "rpi64", "pcusb"):
+            assert any(n.endswith("/ci/%s.cmake" % cmake) for n in names), "the toolchain file of %s is part of the source" % cmake
+        for key in ("psc", "rpi", "rpi64", "pcusb"):
+            assert "toolchain (%s):" % key in info
+        assert "[--target psc|rpi|rpi64|pcusb]" in info
 
 
 def test_a_launcher_value_can_differ_per_target():
     cfg = load("openlara")
     assert mkmod.launcher_value(cfg, "env", "psc") == ""
-    assert mkmod.launcher_value(cfg, "env", "rpi") == "HOME=/var/volatile/launchtmp"
+    for target in LINUX:  # env.linux: the key of every target but the console
+        assert mkmod.launcher_value(cfg, "env", target) == "HOME=/var/volatile/launchtmp"
     assert mkmod.launcher_value(cfg, "binary", "rpi") == "OpenLara"  # no key of its own: the common one
-    with tempfile.TemporaryDirectory() as w:
-        _, files = unpack(build("openlara", "rpi", w)[0])
-        assert "HOME=/var/volatile/launchtmp ./OpenLara" in files["launch.sh"].decode()
-        assert "src/platform/sdl2" in files["SOURCE.txt"].decode()
+    for target in LINUX:
+        with tempfile.TemporaryDirectory() as w:
+            _, files = unpack(build("openlara", target, w)[0])
+            assert "HOME=/var/volatile/launchtmp ./OpenLara" in files["launch.sh"].decode()
+            assert "src/platform/sdl2" in files["SOURCE.txt"].decode()
     with tempfile.TemporaryDirectory() as w:
         _, files = unpack(build("openlara", "psc", w)[0])
         assert "HOME=" not in files["launch.sh"].decode()
 
 
-def test_game_data_is_not_built_for_the_pi():
+def test_the_engine_program_is_named_per_target():
+    """ioquake3's program is named after the engine's ARCH: one name per machine, the console's and the 32-bit Pi's kept"""
+    cfg = load("ioquake3")
+    names = {t: mkmod.launcher_value(cfg, "binary", t) for t in ("psc", "rpi", "rpi64", "pcusb")}
+    assert names == {"psc": "ioquake3.armv7l", "rpi": "ioquake3.armv7l", "rpi64": "ioquake3.aarch64", "pcusb": "ioquake3.x86"}
+    with tempfile.TemporaryDirectory() as w:
+        _, files = unpack(build("ioquake3", "pcusb", w)[0])
+        launch = files["launch.sh"].decode()
+        assert "./ioquake3.x86 " in launch and "armv7l" not in launch
+
+
+@pytest.mark.parametrize("target", sorted(LINUX))
+def test_game_data_is_not_built_for_the_linux_targets(target):
     for pid in ("freedoomdata", "openarenadata"):
-        r = subprocess.run([sys.executable, MKMOD, pid, "--target", "rpi", "--stage", ROOT, "--src", ROOT, "--out", ROOT],
+        r = subprocess.run([sys.executable, MKMOD, pid, "--target", target, "--stage", ROOT, "--src", ROOT, "--out", ROOT],
                            capture_output=True, text=True, env=dict(os.environ, AB_ALLOW_NO_DIGEST="1"))
         assert r.returncode != 0 and "game data" in r.stderr + r.stdout
 
@@ -152,10 +182,11 @@ def ci(*args):
     return subprocess.run(["bash", os.path.join(ROOT, "ci", "build.sh"), *args], capture_output=True, text=True, cwd=ROOT)
 
 
-def test_ci_builds_no_game_data_for_the_pi():
-    r = ci("--target", "rpi", "freedoomdata", "openarenadata", "liero", "xargon")
+@pytest.mark.parametrize("target", sorted(LINUX))
+def test_ci_builds_no_game_data_for_the_linux_targets(target):
+    r = ci("--target", target, "freedoomdata", "openarenadata", "liero", "xargon")
     assert r.returncode == 0, r.stderr
-    assert r.stdout.count("shared with the psc build") == 4 and "freedoomdata (rpi)" in r.stdout
+    assert r.stdout.count("shared with the psc build") == 4 and "freedoomdata (%s)" % target in r.stdout
 
 
 def test_ci_target_can_come_after_the_port_and_must_be_known():
@@ -165,15 +196,16 @@ def test_ci_target_can_come_after_the_port_and_must_be_known():
 
 
 def test_the_ports_name_no_console_flag_any_more():
-    """PSC_FLAGS became ARM_FLAGS (the Pi has its own): nothing may still read the old name"""
+    """PSC_FLAGS became ARM_FLAGS and then CPU_FLAGS (every target has its own): nothing may still read the old names"""
     for pid in os.listdir(os.path.join(ROOT, "ports")):
         path = os.path.join(ROOT, "ports", pid, "build.sh")
         with open(path, encoding="utf-8") as f:
-            assert "PSC_FLAGS" not in f.read(), path
+            text = f.read()
+            assert "PSC_FLAGS" not in text and "ARM_FLAGS" not in text, path
 
 
 def test_patches_for_one_target_say_so_in_their_name():
-    name_re = re.compile(r"^\d{4}-[a-z0-9-]+(\.psc|\.rpi)?\.patch$")
+    name_re = re.compile(r"^\d{4}-[a-z0-9-]+(\.psc|\.linux|\.rpi|\.rpi64|\.pcusb)?\.patch$")
     seen = {}
     for pid in os.listdir(os.path.join(ROOT, "ports")):
         folder = os.path.join(ROOT, "ports", pid, "patches")
@@ -182,11 +214,28 @@ def test_patches_for_one_target_say_so_in_their_name():
             seen[(pid, name)] = True
     assert ("tyrquake", "0001-psc-video-1280x720-abgr.psc.patch") in seen, "the console's ABGR/720p window is the console's only"
     assert ("tyrquake", "0002-sdl-gamecontroller.patch") in seen
+    assert ("blastem", "0006-builtin-font.linux.patch") in seen, "Nuklear's built-in font on every Linux machine (DejaVu aborts its baker)"
+
+
+def test_the_linux_patches_apply_to_every_target_but_the_console():
+    """ci/build.sh's own filter: .linux.patch is applied for rpi, rpi64 and pcusb, never for psc"""
+    with open(os.path.join(ROOT, "ci", "build.sh"), encoding="utf-8") as f:
+        text = f.read()
+    assert '*.linux.patch) [ "$TARGET" != psc ] || continue' in text
+    for target in ("rpi", "rpi64", "pcusb"):
+        assert '*.%s.patch) [ "$TARGET" = %s ] || continue' % (target, target) in text
+
+
+def test_every_port_builds_for_every_target_in_its_script():
+    """no build script may still name a Pi-only thing: `[ "$TARGET" = rpi ]` is gone (rpi64 and pcusb are Linux targets too)"""
+    for pid in os.listdir(os.path.join(ROOT, "ports")):
+        with open(os.path.join(ROOT, "ports", pid, "build.sh"), encoding="utf-8") as f:
+            assert '"$TARGET" = rpi ]' not in f.read(), pid
 
 
 # ---- store_item.py -------------------------------------------------------------------------------------------------
 def fake_release(out):
-    """what both builds leave in out/: the console's engines, the Pi's, the shared game data and one source archive each"""
+    """what every build leaves in out/: the engines of each target, the shared game data and one source archive each"""
     os.makedirs(out)
     for pid in sorted(os.listdir(os.path.join(ROOT, "ports"))):
         cfg = load(pid)
@@ -194,7 +243,7 @@ def fake_release(out):
         if mkmod.is_package_port(cfg):
             open(os.path.join(out, "%s-%s.zip" % (pid, ver)), "wb").write(b"zip " + pid.encode())
             continue
-        targets = ("psc",) if mkmod.is_data_mod(cfg) else ("psc", "rpi")
+        targets = ("psc",) if mkmod.is_data_mod(cfg) else ("psc", "rpi", "rpi64", "pcusb")
         for t in targets:
             open(os.path.join(out, mkmod.mod_filename(pid, ver, t)), "wb").write(b"mod %s %s" % (pid.encode(), t.encode()))
         open(os.path.join(out, "%s-%s-source.tar.gz" % (pid, ver)), "wb").write(b"src " + pid.encode())
@@ -204,22 +253,23 @@ def store(out, dest, *args):
     return subprocess.run([sys.executable, STORE_ITEM, "--out", out, "--dest", dest, *args], capture_output=True, text=True)
 
 
-def test_the_pi_catalog_has_the_pi_engines_and_the_shared_data():
+@pytest.mark.parametrize("target", sorted(LINUX))
+def test_the_catalog_has_the_targets_engines_and_the_shared_data(target):
     with tempfile.TemporaryDirectory() as w:
         out = os.path.join(w, "out")
         fake_release(out)
-        psc, rpi = os.path.join(w, "psc"), os.path.join(w, "rpi")
+        psc, rpi = os.path.join(w, "psc"), os.path.join(w, target)
         assert store(out, psc).returncode == 0
-        r = store(out, rpi, "--target", "rpi")
+        r = store(out, rpi, "--target", target)
         assert r.returncode == 0, r.stderr
         for pid in ENGINES:
             ver = load(pid)["port"]["version"]
             with open(os.path.join(rpi, pid + ".item.json"), encoding="utf-8") as f:
                 item = json.load(f)
-            assert item["id"] == "pe/" + pid and item["files"] == [{"name": "%s-%s-rpi.mod" % (pid, ver)}]
+            assert item["id"] == "pe/" + pid and item["files"] == [{"name": "%s-%s-%s.mod" % (pid, ver, target)}]
             assert item["source_url"].endswith("/%s/%s-%s-source.tar.gz" % (pid, pid, ver)), "the one source archive"
-            with open(os.path.join(rpi, "%s-%s-rpi.mod" % (pid, ver)), "rb") as f:
-                assert f.read() == b"mod %s rpi" % pid.encode()
+            with open(os.path.join(rpi, "%s-%s-%s.mod" % (pid, ver, target)), "rb") as f:
+                assert f.read() == b"mod %s %s" % (pid.encode(), target.encode())
             with open(os.path.join(psc, pid + ".item.json"), encoding="utf-8") as f:
                 assert json.load(f)["files"] == [{"name": "%s-%s.mod" % (pid, ver)}], "the console's catalog is unchanged"
         # game data: the very same package in both catalogs
@@ -233,14 +283,15 @@ def test_the_pi_catalog_has_the_pi_engines_and_the_shared_data():
             assert os.path.isfile(os.path.join(rpi, "%s-%s.zip" % (pid, ver)))
 
 
-def test_a_missing_pi_package_stops_the_pi_release():
+@pytest.mark.parametrize("target", sorted(LINUX))
+def test_a_missing_package_stops_that_targets_release(target):
     with tempfile.TemporaryDirectory() as w:
         out = os.path.join(w, "out")
         fake_release(out)
         ver = load("blastem")["port"]["version"]
-        os.remove(os.path.join(out, "blastem-%s-rpi.mod" % ver))
-        r = store(out, os.path.join(w, "rpi"), "--target", "rpi")
-        assert r.returncode != 0 and "blastem-%s-rpi.mod is not in" % ver in r.stderr
+        os.remove(os.path.join(out, "blastem-%s-%s.mod" % (ver, target)))
+        r = store(out, os.path.join(w, target), "--target", target)
+        assert r.returncode != 0 and "blastem-%s-%s.mod is not in" % (ver, target) in r.stderr
         assert store(out, os.path.join(w, "psc")).returncode == 0, "the console's release does not need the Pi's files"
 
 

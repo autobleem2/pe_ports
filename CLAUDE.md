@@ -30,12 +30,14 @@ What this repository is and its layout: `README.md`. Rules that matter when you 
   Store page. A new port needs nothing more than its `port.ini`. Nightlies (develop pushes) stay GitHub pre-release
   assets: the `nightly` release carries every `.mod` with its `-source.tar.gz` next to it (the build job fails when a
   `.mod` has no source archive), and nothing of them reaches the site.
-- **Two targets (APPS-13, 2026-10-07):** `ci/build.sh --target psc|rpi` (default psc). The Pi build makes `<id>-<version>-rpi.mod`
-  (`Platform: RPI armhf`) for the eight engines; a v* release builds both targets, publishes the console's items to `store psc` and
-  the Pi's (plus the same game-data packages) to `store rpi`, and ships ONE source archive per port (nothing in it may depend on
-  the target). A patch for one target only is `NNNN-name.psc.patch` / `.rpi.patch`; per-target `port.ini` keys are `args.rpi`,
-  `env.rpi`, `pre.rpi`, `changes.rpi`. Game data is never built per target. A change to an engine's shared files is checked on
-  both targets (`tests/qemu/rpi_smoke.sh` for the Pi).
+- **Four targets (APPS-13, 2026-10-07):** `ci/build.sh --target psc|rpi|rpi64|pcusb` (default psc). A Linux build makes
+  `<id>-<version>-<target>.mod` (`Platform: RPI armhf` / `RPI64 arm64` / `PCUSB i386`) for the eight engines; a v* release builds
+  all four, publishes the console's items to `store psc` and each other target's (plus the same game-data packages) to
+  `store <target>`, and ships ONE source archive per port (nothing in it may depend on the target). A patch for some targets only
+  is `NNNN-name.psc.patch` (the console), `.linux.patch` (rpi, rpi64, pcusb) or `.rpi.patch` / `.rpi64.patch` / `.pcusb.patch`;
+  per-target `port.ini` keys are `args|env|pre|binary|changes.<t>`, `<t>` a target or `linux` (target, then `linux`, then plain).
+  Game data is never built per target. A change to an engine's shared files is checked on every target
+  (`tests/qemu/smoke.sh <target>`; `rpi_smoke.sh` is the Pi's).
 - **A release is a gate:** a port that fails to build on a tag stops the whole `build` job, so `site` never runs and
   nothing of that tag is published (`store_item.py` also refuses a missing `.mod` or source). Fix the port and tag again.
 - A package's launcher_filename is the key of its program in the launcher's `rc/pe_compat.ini`: keep `[pad]` in

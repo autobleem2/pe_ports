@@ -184,6 +184,6 @@ def test_the_pi_menu_never_loads_a_system_font():
     fontconfig and no fonts, so it always used the built-in one): the Pi patch drops the system font lookup"""
     base = ["0003-psc-default-font.patch"]
     assert "default_font(&font_size)" in nuklear_font_init(base)  # the console's source still asks fontconfig (finds none)
-    pi = nuklear_font_init(base + ["0006-builtin-font.rpi.patch"])
+    pi = nuklear_font_init(base + ["0006-builtin-font.linux.patch"])
     assert "default_font(" not in pi and "uint8_t *font = NULL;" in pi
     assert "nk_font_atlas_add_default" in pi  # what is then used: Nuklear's own ProggyClean
