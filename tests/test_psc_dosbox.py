@@ -286,3 +286,17 @@ def test_xargon_ships_its_saved_setup_so_it_never_asks_keyboard_or_joystick():
     assert sets[0][-8:] == b"\0\0\0\0\x01\0\x01\0"  # the answers the game saved
     with open(os.path.join(xargon, "build.sh"), encoding="utf-8") as f:
         assert 'CONFIG.XR$n" "$STAGE/XARGON/CONFIG.XR$n"' in f.read()
+
+
+def test_xargon_pad_cross_fires_circle_jumps_triangle_stays_enter():
+    """the PSC pad is SDL buttons 0 Triangle, 1 Circle, 2 Cross, 3 Square: Cross and Square fire (Space, Shift), Circle
+    jumps (Alt), Triangle stays Enter - the key the shipped CONFIG.XR1-3 confirm screen is answered with"""
+    binds = {}
+    with open(os.path.join(ROOT, "ports", "xargon", "files", "mapper.txt"), encoding="utf-8") as f:
+        for line in f.read().splitlines():
+            name, bind = line.split(" ", 1)
+            binds[bind.strip('"')] = name
+    assert binds["stick_0 button 2"] == "key_space"
+    assert binds["stick_0 button 3"] == "key_lshift"
+    assert binds["stick_0 button 1"] == "key_lalt"
+    assert binds["stick_0 button 0"] == "key_enter"
