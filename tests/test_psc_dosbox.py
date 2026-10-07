@@ -258,3 +258,31 @@ def test_a_mapper_binding_buttons_above_3_needs_buttonwrap_off():
             high += [b for b in re.findall(r"stick_0 button ([0-9]+)", f.read()) if int(b) >= 4]
     assert high, "the shipped mappers are expected to use the shoulder, Select and Start buttons"
     assert wrap[0] == "false", "a mapper binds button %s but buttonwrap is %s" % (high[0], wrap[0])
+
+
+def test_dosbox_ships_the_drawn_icon_as_its_app_image():
+    import struct
+    import sys
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import configparser
+    import mkmod
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read(os.path.join(ROOT, "ports", "dosbox", "port.ini"), encoding="utf-8")
+    png = mkmod.port_icon(cfg["port"])
+    assert png == open(os.path.join(FILES, "icon.png"), "rb").read()
+    assert png[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", png[16:24]) == (256, 219)  # the size of the App icons (app_*/resources/icon.png)
+    # a port without icon_file keeps the generated one
+    assert mkmod.port_icon({"id": "x", "icon_text": "X"})[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_xargon_ships_its_saved_setup_so_it_never_asks_keyboard_or_joystick():
+    """the files the game wrote itself (digital sound, music, Keyboard) for its three episodes, laid by build.sh"""
+    xargon = os.path.join(ROOT, "ports", "xargon")
+    sets = []
+    for n in (1, 2, 3):
+        with open(os.path.join(xargon, "files", "CONFIG.XR%d" % n), "rb") as f:
+            sets.append(f.read())
+    assert len(sets[0]) == 232 and sets[0] == sets[1] == sets[2]
+    assert sets[0][-8:] == b"\0\0\0\0\x01\0\x01\0"  # the answers the game saved
+    with open(os.path.join(xargon, "build.sh"), encoding="utf-8") as f:
+        assert 'CONFIG.XR$n" "$STAGE/XARGON/CONFIG.XR$n"' in f.read()

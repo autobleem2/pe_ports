@@ -15,4 +15,9 @@ port_build() {
     mv "$BUILD_DIR/unpack/Xargon" "$STAGE/XARGON"
     cp "$PORT_DIR/files/Xargon-freeware.txt" "$STAGE/licences/Xargon-freeware.txt"
     cp "$PORT_DIR/files/mapper.txt" "$STAGE/mapper.txt"
+    # Xargon asks for its sound and its game controller (Keyboard or Joystick) once per episode and saves the answers in
+    # CONFIG.XR1/2/3; DOSBox's joystick makes it ask, and the pad cannot answer a Joystick calibration. These are the
+    # files the game itself wrote when answered "digital sound yes, music yes, Keyboard" (the pad map turns the pad into
+    # keys): the question never appears, only "Press ENTER if this is correct" (Cross is Enter)
+    for n in 1 2 3; do cp "$PORT_DIR/files/CONFIG.XR$n" "$STAGE/XARGON/CONFIG.XR$n"; done
 }
