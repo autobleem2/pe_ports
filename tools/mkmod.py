@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Packs one built port into a PE package (.mod) and its corresponding-source archive.
 
-    tools/mkmod.py <id> [--target psc|rpi] --stage DIR --src DIR --out DIR
+    tools/mkmod.py <id> [--target psc|rpi|rpi64|pcusb] --stage DIR --src DIR --out DIR
 
 <id>     the port (ports/<id>/port.ini)
 --stage  the launcher folder's files as the port's build left them: the program, its libraries, the allowed
@@ -10,8 +10,10 @@
 --out    where out/<id>-<version>.mod and out/<id>-<version>-source.tar.gz go
 --target the machine the program was built for (default psc): psc writes "Platform: SONYPSC armhf" into the control
          file and out/<id>-<version>.mod; rpi (the Raspberry Pi 32-bit) writes "Platform: RPI armhf" and
-         out/<id>-<version>-rpi.mod - proc_pe lists an App only on the machine its Platform names. The source archive
-         is the same file for both (its BUILD-INFO.txt names both toolchains); a data package is the same for both
+         out/<id>-<version>-rpi.mod, rpi64 (the Raspberry Pi 64-bit) "Platform: RPI64 arm64" and out/<id>-<version>-rpi64.mod,
+         pcusb (the PC stick, i386) "Platform: PCUSB i386" and out/<id>-<version>-pcusb.mod - proc_pe lists an App only on
+         the machine its Platform names. The source archive is the same file for every target (its BUILD-INFO.txt names all
+         the toolchains); a data package is the same for every target
 
 What it adds to the stage: launch.sh and launcher.cfg (generated from port.ini - nothing of any third party's),
 a plain generated icon, SOURCE.txt (licence, source URL and commit, the sha256 of the source archive, the written
@@ -55,19 +57,33 @@ MAINTAINER = "AutoBleem team"
 # the package types (the launcher's App categories): port.ini's optional `category`, written into the control file
 # (the launcher files the App there, as "<title> (mod)") and into the Store item
 CATEGORIES = ("games", "emulators", "tools", "media", "other", "packages")
-# the machines a program is built for: the control file's Platform line (proc_pe reads its first word) and the .mod's name suffix
-TARGETS = {"psc": ("SONYPSC armhf", ""), "rpi": ("RPI armhf", "-rpi")}
+# the machines a program is built for: the control file's Platform line (proc_pe reads its first word), the .mod's name suffix
+# and the control file's Architecture
+TARGETS = {
+    "psc": ("SONYPSC armhf", "", "armhf"),
+    "rpi": ("RPI armhf", "-rpi", "armhf"),
+    "rpi64": ("RPI64 arm64", "-rpi64", "arm64"),
+    "pcusb": ("PCUSB i386", "-pcusb", "i386"),
+}
+# SOURCE.txt's words for the Linux targets: the machine and the cross compiler
+LINUX_TARGETS = {
+    "rpi": ("the Raspberry Pi 32-bit (Raspberry Pi OS armhf)", "arm-linux-gnueabihf"),
+    "rpi64": ("the Raspberry Pi 64-bit (aarch64)", "aarch64-linux-gnu"),
+    "pcusb": ("the PC stick (Debian 12 i386)", "i686-linux-gnu"),
+}
 
 
 def mod_filename(pid, ver, target="psc"):
-    """The .mod's file name: <id>-<version>.mod for the console, <id>-<version>-rpi.mod for the Pi."""
+    """The .mod's file name: <id>-<version>.mod for the console, <id>-<version>-<target>.mod for the others."""
     return "%s-%s%s.mod" % (pid, ver, TARGETS[target][1])
 
 
 def launcher_value(cfg, key, target="psc"):
-    """A [launcher] value of port.ini: `<key>.<target>` when the port has one for this target, else `<key>`."""
+    """A [launcher] value of port.ini: `<key>.<target>` when the port has one for this target, else `<key>.linux` (every
+    target but the console) when it has one, else `<key>`."""
     section = cfg["launcher"]
-    return section.get(key + "." + target, section.get(key, "")).strip()
+    common = section.get(key + ".linux", section.get(key, "")) if target != "psc" else section.get(key, "")
+    return section.get(key + "." + target, common).strip()
 
 
 def port_category(p):
@@ -285,7 +301,7 @@ def make_source(port, cfg, out_dir, mtime, build_info):
             dirs[:] = sorted(d for d in dirs if d not in ("upstream", "data"))
             for n in sorted(names):
                 files.append(os.path.join(base, n))
-        for extra in ("ci/build.sh", "ci/rpi.cmake", "tools/mkmod.py", "LICENSE", "README.md"):
+        for extra in ("ci/build.sh", "ci/rpi.cmake", "ci/rpi64.cmake", "ci/pcusb.cmake", "tools/mkmod.py", "LICENSE", "README.md"):
             files.append(os.path.join(ROOT, extra))
         for f in files:
             add_file(t, f, top + "/" + os.path.relpath(f, ROOT).replace(os.sep, "/"), mtime)
@@ -388,13 +404,16 @@ def source_txt(cfg, source_url, sha, digest, image, target="psc"):
     out.append("Our changes to the upstream:")
     for part in p["changes"].split(";"):
         out.append("  - " + part.strip())
-    if target == "rpi":
-        out.append("  - this package is built for the Raspberry Pi 32-bit (Raspberry Pi OS armhf) with the build image's")
-        out.append("    arm-linux-gnueabihf cross compiler against its Debian 12 libraries (ci/build.sh --target rpi); it runs on")
+    if target in LINUX_TARGETS:
+        machine, triplet = LINUX_TARGETS[target]
+        out.append("  - this package is built for %s with the build image's" % machine)
+        out.append("    %s cross compiler against its Debian 12 libraries (ci/build.sh --target %s); it runs on" % (triplet, target))
         out.append("    the system's SDL2")
-        for part in p.get("changes.rpi", "").split(";"):
-            if part.strip():
-                out.append("  - " + part.strip())
+        # what every Linux target shares (changes.linux), then what is this machine's alone (changes.<target>)
+        for key in ("changes.linux", "changes." + target):
+            for part in p.get(key, "").split(";"):
+                if part.strip():
+                    out.append("  - " + part.strip())
     out.append("  - launch.sh, launcher.cfg and the icon are generated by tools/mkmod.py (not taken from anywhere)")
     out.append("")
     if cfg.has_section("data") and cfg["data"].get("shipped", "none") != "none":
@@ -629,10 +648,12 @@ def main():
         "upstream commit:    %s" % p["upstream_commit"],
         "build image:        %s" % image,
         "build image digest: %s" % digest,
-        # one archive serves both targets, so nothing in it depends on the one being packed now
+        # one archive serves every target, so nothing in it depends on the one being packed now
         "toolchain (psc):    gcc-6 against the console's Debian Stretch sysroot (/opt/psc), SDL2 2.0.18 family",
         "toolchain (rpi):    arm-linux-gnueabihf-gcc 12 against the image's Debian 12 armhf libraries (Raspberry Pi 32-bit), the system's SDL2",
-        "rebuild:            docker run --rm -v $PWD:/src -w /src -e AB_BUILD_IMAGE_DIGEST=%s %s@%s ci/build.sh [--target psc|rpi] %s" %
+        "toolchain (rpi64):  aarch64-linux-gnu-gcc 12 against the image's Debian 12 arm64 libraries (Raspberry Pi 64-bit), the system's SDL2",
+        "toolchain (pcusb):  i686-linux-gnu-gcc 12 against the image's Debian 12 i386 libraries (the PC stick), the system's SDL2",
+        "rebuild:            docker run --rm -v $PWD:/src -w /src -e AB_BUILD_IMAGE_DIGEST=%s %s@%s ci/build.sh [--target psc|rpi|rpi64|pcusb] %s" %
         (digest, "ghcr.io/autobleem2/autobleem-build", digest, pid), ""])
     src_path, sha = make_source(a, cfg, a.out, mtime, build_info)
     source_url = "%s/%s/%s" % (base, pid, os.path.basename(src_path))
@@ -694,7 +715,7 @@ def main():
         # ---- control.tar.gz (the Debian control file: the Description's continuation lines carry the metadata)
         desc = [p["description"]]
         control = [
-            "Package: %s" % pid, "Version: %s" % ver, "Architecture: armhf", "Maintainer: %s" % MAINTAINER,
+            "Package: %s" % pid, "Version: %s" % ver, "Architecture: %s" % TARGETS[a.target][2], "Maintainer: %s" % MAINTAINER,
             "Installed-Size: %d" % ((size_kb + 1023) // 1024),
             "Description: %s" % p["name"],
             " Type: USB_MOD",

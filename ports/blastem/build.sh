@@ -12,10 +12,17 @@ port_build() {
             > "$BUILD_DIR/pc/glesv2.pc"
         export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$BUILD_DIR/pc"
     fi
-    # (the Pi: the image's armhf sdl2.pc and glesv2.pc, PKG_CONFIG_LIBDIR from ci/build.sh)
-    # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
-    make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
-        OPT="-O2 -flto=$JOBS $ARM_FLAGS -marm -DAB_PSC"
+    # (the Linux targets: the image's sdl2.pc and glesv2.pc of the target, PKG_CONFIG_LIBDIR from ci/build.sh)
+    # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores. The
+    # recompiler is x86 (and the PC stick is i386): the portable cores are what the console and the Pi run and what was
+    # tested, so the stick takes them too - "i686core" is no CPU the Makefile knows, which is how it gets them
+    local cpu=armv7 arm=-marm
+    case "$TARGET" in
+        rpi64) cpu=aarch64 arm= ;;
+        pcusb) cpu=i686core arm= ;;
+    esac
+    make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=$cpu USE_GLES=1 \
+        OPT="-O2 -flto=$JOBS $CPU_FLAGS $arm -DAB_PSC"
     cp "$SRC/blastem" "$STAGE/blastem"
     "$STRIP" "$STAGE/blastem"
 

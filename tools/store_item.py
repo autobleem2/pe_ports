@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Write the AutoBleem Store's `pe` items for a release's packages (autobleem-repo CLAUDE.md, "The AutoBleem
-Store's catalog"), ready for `repo_publish.sh store psc ...` (`--target rpi`: `store rpi ...`, the Raspberry Pi 32-bit's catalog):
+Store's catalog"), ready for `repo_publish.sh store psc ...` (`--target rpi|rpi64|pcusb`: `store <target> ...`, the catalog of the Raspberry Pi 32-bit, 64-bit or the PC stick):
 
     tools/store_item.py --out out --dest store-out
 
@@ -65,7 +65,7 @@ def main():
     ap.add_argument("--ports", default=os.path.join(ROOT, "ports"))
     ap.add_argument("--only", nargs="*", help="port ids (default: every port)")
     ap.add_argument("--target", choices=sorted(mkmod.TARGETS), default="psc",
-                    help="the Store catalog the items are for (store/<target>/): rpi takes the <id>-<version>-rpi.mod of every "
+                    help="the Store catalog the items are for (store/<target>/): rpi, rpi64 and pcusb take the <id>-<version>-<target>.mod of every "
                          "engine; game-data ports are the same package on every machine (--out holds the psc build's too)")
     a = ap.parse_args()
 

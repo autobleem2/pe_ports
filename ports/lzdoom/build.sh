@@ -20,7 +20,7 @@ port_build() {
     # flags are given again, a CMAKE_CXX_FLAGS of ours replaces them)
     local extra=()
     # (and the image's armhf libjpeg/bzip2 would be linked as shared libraries a Pi may not have: the project's own copies)
-    [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$ARM_FLAGS -include limits" -DFORCE_INTERNAL_JPEG=ON -DFORCE_INTERNAL_BZIP2=ON)
+    [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$CPU_FLAGS -include limits" -DFORCE_INTERNAL_JPEG=ON -DFORCE_INTERNAL_BZIP2=ON)
     cmake -S "$SRC" -B "$cross" -G Ninja -DCMAKE_BUILD_TYPE=Release ${extra[@]+"${extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DIMPORT_EXECUTABLES="$host/ImportExecutables.cmake" \
         -DNO_OPENMP=ON -DFORCE_INTERNAL_ZLIB=ON -DNO_GTK=ON -DCMAKE_SKIP_RPATH=ON \
@@ -56,7 +56,7 @@ port_build() {
     # (the Pi's gcc 12 forbids common symbols by default and OpenAL Soft 1.19.1 defines its tables in a header: -fcommon is the
     # old compilers' behaviour; the toolchain file's flags are given again, a CMAKE_C_FLAGS of ours replaces them)
     local oal_extra=()
-    [ "$TARGET" = psc ] || oal_extra=(-DCMAKE_C_FLAGS="$ARM_FLAGS -fcommon")
+    [ "$TARGET" = psc ] || oal_extra=(-DCMAKE_C_FLAGS="$CPU_FLAGS -fcommon")
     cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release ${oal_extra[@]+"${oal_extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_INSTALL=OFF \

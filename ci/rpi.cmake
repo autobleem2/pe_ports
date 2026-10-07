@@ -1,7 +1,7 @@
 # The Raspberry Pi 32-bit (Raspberry Pi OS armhf, Debian 12): the autobleem-build image's cross compiler against its armhf
 # multiarch libraries (/usr/lib/arm-linux-gnueabihf: SDL2 2.26 family, GLES2, EGL, ALSA, zlib; headers in /usr/include).
 # One toolchain file for every CMake port and for the libraries built with a port (gl4es, OpenAL Soft). The flags come
-# from ci/build.sh (ARM_FLAGS); PE_EXTRA_ROOT (environment) adds one more place for headers (the Boost headers a build
+# from ci/build.sh (CPU_FLAGS); PE_EXTRA_ROOT (environment) adds one more place for headers (the Boost headers a build
 # fetched). CMake finds programs on the build machine, libraries and headers for the Pi.
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR arm)
