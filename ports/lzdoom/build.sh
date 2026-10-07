@@ -21,6 +21,8 @@ port_build() {
     local extra=()
     # (and the image's armhf libjpeg/bzip2 would be linked as shared libraries a Pi may not have: the project's own copies)
     [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$CPU_FLAGS -include limits" -DFORCE_INTERNAL_JPEG=ON -DFORCE_INTERNAL_BZIP2=ON)
+    # the PC stick is a plain i686 like the launcher (no SSE2): the software renderer's SSE2 files are the engine's own switch
+    [ "$TARGET" != pcusb ] || extra+=(-DTC_USE_SSE2=OFF)
     cmake -S "$SRC" -B "$cross" -G Ninja -DCMAKE_BUILD_TYPE=Release ${extra[@]+"${extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DIMPORT_EXECUTABLES="$host/ImportExecutables.cmake" \
         -DNO_OPENMP=ON -DFORCE_INTERNAL_ZLIB=ON -DNO_GTK=ON -DCMAKE_SKIP_RPATH=ON \
@@ -57,6 +59,9 @@ port_build() {
     # old compilers' behaviour; the toolchain file's flags are given again, a CMAKE_C_FLAGS of ours replaces them)
     local oal_extra=()
     [ "$TARGET" = psc ] || oal_extra=(-DCMAKE_C_FLAGS="$CPU_FLAGS -fcommon")
+    # the PC stick is a plain i686 like the launcher (no SSE2): x87 code generation, and only the SSE1 mixer is built (the SSE2/3/4.1 ones are
+    # runtime-selected by cpuid, but then no SSE2 instruction is in the library at all)
+    [ "$TARGET" != pcusb ] || oal_extra+=(-DALSOFT_ENABLE_SSE_CODEGEN=OFF -DALSOFT_ENABLE_SSE2_CODEGEN=OFF -DALSOFT_CPUEXT_SSE2=OFF -DALSOFT_CPUEXT_SSE3=OFF -DALSOFT_CPUEXT_SSE4_1=OFF)
     cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release ${oal_extra[@]+"${oal_extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_INSTALL=OFF \

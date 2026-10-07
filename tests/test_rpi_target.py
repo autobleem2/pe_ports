@@ -351,3 +351,12 @@ def test_openlara_launch_script_runs_the_dialog_only_when_the_data_is_missing():
         r = subprocess.run(["sh", os.path.join(w, "launch.sh")], capture_output=True, text=True, env=env)
         assert r.returncode == 0, r.stdout + r.stderr
         assert os.path.exists(os.path.join(w, "engine.txt")) and not os.path.exists(shown)
+
+
+def test_the_pc_stick_is_plain_i686_like_the_launcher():
+    """any PC that runs the launcher must run the ports: no SSE flags in the pcusb build flags"""
+    for rel in ("ci/build.sh", "ci/pcusb.cmake"):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+            text = f.read()
+        assert "-march=i686 -mtune=generic -D_FILE_OFFSET_BITS=64" in text, rel
+        assert "-msse" not in text and "-mfpmath=sse" not in text, rel

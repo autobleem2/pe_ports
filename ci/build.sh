@@ -30,8 +30,8 @@
 # ports are not rebuilt (their packages are the psc build's).
 # --target rpi64: the Raspberry Pi 64-bit (aarch64): the same image's aarch64-linux-gnu cross compiler against its arm64
 # libraries (the Debian 12 ones; the Pi's Raspberry Pi OS is newer, the programs need nothing newer than glibc 2.36).
-# --target pcusb: the PC stick (Debian 12 i386): i686-linux-gnu-gcc against the :i386 libraries, plain i686 with SSE2
-# (-march=i686 -msse2 -mfpmath=sse). Both run on the system's SDL2 like the rpi target and share the Linux patches
+# --target pcusb: the PC stick (Debian 12 i386): i686-linux-gnu-gcc against the :i386 libraries, plain i686 like the launcher (no SSE2)
+# (-march=i686 -mtune=generic, the launcher's own flags). Both run on the system's SDL2 like the rpi target and share the Linux patches
 # (NNNN-name.linux.patch) and port.ini keys (args.linux ...) of the three Linux targets.
 #
 # On the build server: docker run --rm -u $(id -u):$(id -g) -v $PWD:/src -w /src \
@@ -80,7 +80,7 @@ else
     # libraries (SDL2 2.26 family, GLES2, EGL, ALSA, zlib); SDL2 is the system's there, nothing of it ships.
     #   rpi    the Raspberry Pi 32-bit (Raspberry Pi OS armhf)
     #   rpi64  the Raspberry Pi 64-bit (aarch64)
-    #   pcusb  the PC stick (Debian 12 i386; plain i686 plus SSE2, which every PC of the last twenty years has)
+    #   pcusb  the PC stick (Debian 12 i386; plain i686 like the launcher, no SSE2: any PC that runs the launcher runs the ports)
     case "$TARGET" in
         rpi)
             export MULTIARCH=arm-linux-gnueabihf TRIPLET=arm-linux-gnueabihf
@@ -90,7 +90,7 @@ else
             export CPU_FLAGS="-march=armv8-a" ;;
         pcusb)
             export MULTIARCH=i386-linux-gnu TRIPLET=i686-linux-gnu
-            export CPU_FLAGS="-march=i686 -msse2 -mfpmath=sse -mtune=generic -D_FILE_OFFSET_BITS=64" ;;
+            export CPU_FLAGS="-march=i686 -mtune=generic -D_FILE_OFFSET_BITS=64" ;;
     esac
     export CC=$TRIPLET-gcc CXX=$TRIPLET-g++ STRIP=$TRIPLET-strip AR=$TRIPLET-ar
     export PKG_CONFIG_LIBDIR=/usr/lib/$MULTIARCH/pkgconfig:/usr/share/pkgconfig

@@ -1,0 +1,28 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1ed6455b64..55e8063874 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1434,7 +1434,7 @@ endif()
+ if( ZD_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
+ 	# Need to enable intrinsics for these files.
+ 	if( SSE_MATTERS )
+-		set_source_files_properties( x86.cpp PROPERTIES COMPILE_FLAGS "-msse2 -mmmx" )
++		set_source_files_properties( x86.cpp PROPERTIES COMPILE_FLAGS "-mmmx" )
+ 		if( TC_USE_SSE2 )
+ 			set_source_files_properties(
+ 				gl/system/gl_swframebuffer.cpp
+diff --git a/src/x86.cpp b/src/x86.cpp
+index ecc49aad3f..56776d7638 100644
+--- a/src/x86.cpp
++++ b/src/x86.cpp
+@@ -308,6 +308,10 @@ void DoBlending_MMX(const PalEntry *from, PalEntry *to, int count, int r, int g,
+ #endif
+ 
+ 
++#if defined(__GNUC__) && defined(__i386__)
++// the file is built without -msse2 (DoBlending_MMX must not use xmm registers: a Pentium III has MMX but no SSE2); this function runs only when cpuid says SSE2
++#pragma GCC target("sse2")
++#endif
+ void DoBlending_SSE2(const PalEntry *from, PalEntry *to, int count, int r, int g, int b, int a)
+ {
+ 	__m128i blendcolor;

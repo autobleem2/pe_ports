@@ -139,7 +139,7 @@ the same format with `Platform: RPI armhf` in the control file (`proc_pe` turns 
 a machine lists only its own packages) and the same source archive as the console's (its `BUILD-INFO.txt` names both
 toolchains). The 64-bit Pi (`--target rpi64`, `<id>-<version>-rpi64.mod`, `Platform: RPI64 arm64`, `Exec.rpi64=run.sh`,
 `aarch64-linux-gnu`, `ci/rpi64.cmake`) and the PC stick (`--target pcusb`, `<id>-<version>-pcusb.mod`, `Platform: PCUSB i386`,
-`Exec.pcusb=run.sh`, `i686-linux-gnu` with `-march=i686 -msse2`, `ci/pcusb.cmake`) are built the same way in the same image
+`Exec.pcusb=run.sh`, `i686-linux-gnu` with `-march=i686` (no SSE2, like the launcher), `ci/pcusb.cmake`) are built the same way in the same image
 against its arm64 / i386 libraries, and run on their own system SDL2. The game data (`freedoomdata`, `openarenadata`, the DOS games) is the same package on every machine and is not
 rebuilt: the Linux targets skip those ports and `tools/store_item.py --target <target>` takes their files from the console's build.
 What differs per target in a port: `NNNN-name.psc.patch` is the console's, `.linux.patch` is every Linux target's (rpi, rpi64,
