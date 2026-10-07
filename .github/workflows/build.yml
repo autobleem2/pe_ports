@@ -27,6 +27,11 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+      - name: "Workflow files are valid YAML (a broken one starts no run at all)"
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python3" -m pip install --quiet pyyaml pytest
+          "$RUNNER_TEMP/venv/bin/python3" -m pytest -q tests/test_workflows.py
       - name: Cache the build dependencies that are not in git
         uses: actions/cache@v4
         with:
@@ -40,7 +45,7 @@ jobs:
           docker pull "$image"
           echo "AB_BUILD_IMAGE=$image" >> "$GITHUB_ENV"
           echo "AB_BUILD_IMAGE_DIGEST=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}' | sed 's/.*@//')" >> "$GITHUB_ENV"
-      - name: Build every port (the console, then the Raspberry Pi 32-bit and 64-bit and the PC stick - the engines again, the game data is shared)
+      - name: "Build every port (the console, then the Raspberry Pi 32-bit and 64-bit and the PC stick: the engines again, the game data is shared)"
         run: |
           for target in psc rpi rpi64 pcusb; do
             docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
