@@ -156,5 +156,5 @@ def test_the_smd_loader_leaves_the_file_to_load_media():
 def test_the_port_carries_the_fixes_in_its_version_and_changes():
     with open(os.path.join(PORT, "port.ini"), encoding="utf-8") as f:
         ini = f.read()
-    assert "version=1.0.0-4" in ini
+    assert "version=1.0.0-5" in ini  # -5: BlastEm is filed as an emulator (category=emulators)
     assert "0004-aligned-calloc-offset.patch" in ini and "0005-smd-close-once.patch" in ini

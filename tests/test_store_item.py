@@ -77,12 +77,12 @@ def test_descriptor_from_port_ini():
 
 
 def expected_category(pid):
-    """the owner's mapping: game ports are games, DOSBox an emulator, the game-data mods packages"""
+    """the owner's mapping: game ports are games, DOSBox and BlastEm emulators, the game-data mods packages"""
     with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
         text = f.read()
     if "\nkind=data" in text:
         return "packages"
-    return "emulators" if pid == "dosbox" else "games"
+    return "emulators" if pid in ("dosbox", "blastem") else "games"
 
 
 def test_port_category_is_lower_case_and_checked():
