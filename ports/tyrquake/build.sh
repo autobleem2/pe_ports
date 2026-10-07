@@ -5,7 +5,7 @@ port_build() {
     chmod +x "$PORT_DIR/shim/convert"
     export PATH="$PORT_DIR/shim:$PATH"
     # the Makefile appends its own -O2 and warnings to the CFLAGS of the environment
-    CFLAGS="$PSC_FLAGS -O3" make -C "$SRC" -j "$JOBS" bin/tyr-quake USE_SDL=Y \
+    CFLAGS="$ARM_FLAGS -O3" make -C "$SRC" -j "$JOBS" bin/tyr-quake USE_SDL=Y \
         CC="$CC" STRIP="$STRIP" \
         SDL_CFLAGS="$(pkg-config --cflags sdl2)" SDL_LFLAGS="$(pkg-config --libs sdl2)"
     cp "$SRC/bin/tyr-quake" "$STAGE/tyr-quake"

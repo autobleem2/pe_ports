@@ -4,15 +4,18 @@
 # Sourced by ci/build.sh with $SRC (patched upstream), $STAGE (the launcher folder's files), $PORT_DIR.
 port_build() {
     chmod +x "$SRC/cpu_dsl.py"
-    # sdl2.pc is the launcher's SDL2; the console sysroot's glesv2.pc would add -L/usr/lib/arm-linux-gnueabihf, which
-    # the linker takes for the host's own library, so a one-line glesv2.pc of ours names just the library
-    mkdir -p "$BUILD_DIR/pc"
-    printf '%s\n' 'Name: glesv2' 'Description: OpenGL ES 2 (the console sysroot)' 'Version: 2.0' 'Libs: -lGLESv2' \
-        > "$BUILD_DIR/pc/glesv2.pc"
-    export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$BUILD_DIR/pc"
+    if [ "$TARGET" = psc ]; then
+        # sdl2.pc is the launcher's SDL2; the console sysroot's glesv2.pc would add -L/usr/lib/arm-linux-gnueabihf, which
+        # the linker takes for the host's own library, so a one-line glesv2.pc of ours names just the library
+        mkdir -p "$BUILD_DIR/pc"
+        printf '%s\n' 'Name: glesv2' 'Description: OpenGL ES 2 (the console sysroot)' 'Version: 2.0' 'Libs: -lGLESv2' \
+            > "$BUILD_DIR/pc/glesv2.pc"
+        export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig:$BUILD_DIR/pc"
+    fi
+    # (the Pi: the image's armhf sdl2.pc and glesv2.pc, PKG_CONFIG_LIBDIR from ci/build.sh)
     # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
     make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
-        OPT="-O2 -flto=$JOBS $PSC_FLAGS -marm -DAB_PSC"
+        OPT="-O2 -flto=$JOBS $ARM_FLAGS -marm -DAB_PSC"
     cp "$SRC/blastem" "$STAGE/blastem"
     "$STRIP" "$STAGE/blastem"
 

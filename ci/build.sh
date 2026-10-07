@@ -3,10 +3,12 @@
 #
 #   ci/build.sh openlara|commanderkeen|openjazz|tyrquake|ioquake3|openarenadata|lzdoom|freedoomdata|dosbox|liero|xargon|blastem    one port
 #   ci/build.sh all                                         every port in ports/
+#   ci/build.sh --target rpi <port>|all                     the same for the Raspberry Pi 32-bit (default: --target psc)
 #
 # For each port the result is, in out/:
 #   <id>-<version>.mod                  the PE package (what the Store hands out; the program, its launcher files,
-#                                       the allowed shareware data, SOURCE.txt and the licence text)
+#                                       the allowed shareware data, SOURCE.txt and the licence text); for --target rpi
+#                                       <id>-<version>-rpi.mod ("Platform: RPI armhf", the same source archive)
 #   <id>-<version>-source.tar.gz        the corresponding source (never part of the .mod): the pinned upstream and
 #                                       its submodules, our patches, these build scripts and the build image digest
 #
@@ -18,9 +20,12 @@
 # copies it into build/<id>/src and applies patches/*.patch there. Its build.sh defines port_build, which compiles
 # the program and lays the launcher folder's files into $STAGE.
 #
-# The target is the PlayStation Classic only (the PE environment exists nowhere else): gcc-6 against the console's
-# Debian Stretch sysroot, the launcher's SDL2 2.0.18 family shared (it is in /tmp/lib on the console, and
-# ${PROJECT_ERIS_PATH}/lib holds a link to it while a mod runs), everything else static or the mod's own.
+# --target psc (the default): the PlayStation Classic, gcc-6 against the console's Debian Stretch sysroot, the launcher's
+# SDL2 2.0.18 family shared (it is in /tmp/lib on the console, and ${PROJECT_ERIS_PATH}/lib holds a link to it while a
+# mod runs), everything else static or the mod's own.
+# --target rpi: the Raspberry Pi 32-bit (Raspberry Pi OS armhf): the image's Debian 12 cross compiler against its armhf
+# libraries, the system's SDL2; the PE environment is rc/pe_run.sh of the launcher's Linux package. The game-data
+# ports are not rebuilt (their packages are the psc build's).
 #
 # On the build server: docker run --rm -u $(id -u):$(id -g) -v $PWD:/src -w /src \
 #                          -e AB_BUILD_IMAGE_DIGEST=<RepoDigest of the image> \
@@ -31,18 +36,53 @@ ROOT=$PWD
 
 JOBS="${JOBS:-$(nproc)}"
 PSC=${AB_PSC_TOOLCHAIN:-/opt/psc}
-export JOBS PSC ROOT
+
+# --target psc|rpi (default psc, or $AB_PE_TARGET): the machine the programs are built for. The data ports are shared by
+# both and are not rebuilt for rpi.
+TARGET=${AB_PE_TARGET:-psc}
+args=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --target) TARGET=${2:?--target needs psc or rpi}; shift 2 ;;
+        --target=*) TARGET=${1#--target=}; shift ;;
+        *) args+=("$1"); shift ;;
+    esac
+done
+set -- "${args[@]+"${args[@]}"}"
+case "$TARGET" in psc | rpi) ;; *) echo "unknown target: $TARGET (psc or rpi)" >&2; exit 2 ;; esac
+export JOBS PSC ROOT TARGET
 # the checkout belongs to another user than the container's (git refuses "dubious ownership" otherwise)
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
-export CC="$PSC/bin/armv8-sony-linux-gnueabihf-gcc" CXX="$PSC/bin/armv8-sony-linux-gnueabihf-g++"
-export STRIP="$PSC/bin/armv8-sony-linux-gnueabihf-strip" AR="$PSC/bin/armv8-sony-linux-gnueabihf-ar"
-# what the app_* ports use for the console, plus nothing else
-export PSC_FLAGS="-mfloat-abi=hard -march=armv8-a -mfpu=neon-vfpv4"
-export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig"
-export SDL_PREFIX="$PSC/sdl2"
-
-# sdl2-config of the console's SDL2 family first on the PATH (a Makefile that asks for it gets the console's flags)
-export PATH="$PSC/sdl2/bin:$PATH"
+# the PATH a build tool that runs on the build machine itself (lzdoom's and OpenAL's generators) must see
+NATIVE_PATH=$PATH
+if [ "$TARGET" = psc ]; then
+    export CC="$PSC/bin/armv8-sony-linux-gnueabihf-gcc" CXX="$PSC/bin/armv8-sony-linux-gnueabihf-g++"
+    export STRIP="$PSC/bin/armv8-sony-linux-gnueabihf-strip" AR="$PSC/bin/armv8-sony-linux-gnueabihf-ar"
+    # what the app_* ports use for the console, plus nothing else
+    export ARM_FLAGS="-mfloat-abi=hard -march=armv8-a -mfpu=neon-vfpv4"
+    export PKG_CONFIG_LIBDIR="$PSC/sdl2/lib/pkgconfig"
+    export SDL_PREFIX="$PSC/sdl2"
+    # the toolchain files: the port's own (CMake ports), and the plain one gl4es is built with
+    export TOOLCHAIN_PLAIN="$PSC/toolchain.cmake"
+    # the static zlib a port links in
+    export ZLIB_A="$PSC/sysroot/usr/lib/arm-linux-gnueabihf/libz.a" ZLIB_INC="$PSC/sysroot/usr/include"
+    # sdl2-config of the console's SDL2 family first on the PATH (a Makefile that asks for it gets the console's flags)
+    export PATH="$PSC/sdl2/bin:$PATH"
+else
+    # the Raspberry Pi 32-bit (Raspberry Pi OS armhf, Debian 12 libraries): the image's cross compiler against its armhf
+    # multiarch libraries (SDL2 2.26 family, GLES2, EGL, ALSA, zlib); SDL2 is the system's on the Pi, nothing of it ships
+    export CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ STRIP=arm-linux-gnueabihf-strip AR=arm-linux-gnueabihf-ar
+    export ARM_FLAGS="-mfloat-abi=hard -march=armv7-a -mfpu=neon-vfpv4"
+    export PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig
+    export TOOLCHAIN_PLAIN="$ROOT/ci/rpi.cmake"
+    export ZLIB_A=/usr/lib/arm-linux-gnueabihf/libz.a ZLIB_INC=/usr/include
+    # a Makefile that asks for `sdl2-config` gets the armhf SDL2's flags (the host's own script would name x86 paths)
+    mkdir -p "$ROOT/build/shim"
+    printf '%s\n' '#!/bin/sh' 'exec pkg-config sdl2 "$@"' > "$ROOT/build/shim/sdl2-config"
+    chmod +x "$ROOT/build/shim/sdl2-config"
+    export PATH="$ROOT/build/shim:$PATH"
+fi
+export NATIVE_PATH
 
 banner() { printf '\n==== %s ====\n' "$*"; }
 
@@ -78,9 +118,20 @@ check_binary() {
     local f
     for f in "$@"; do
         file "$f" | grep -q 'ELF 32-bit LSB.*ARM'
-        bash /opt/ab/tools/check_psc_binary.sh "$f" "$PSC"
-        local lib needed
-        needed=$("$PSC/bin/armv8-sony-linux-gnueabihf-readelf" -d "$f" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
+        local lib needed readelf
+        if [ "$TARGET" = psc ]; then
+            bash /opt/ab/tools/check_psc_binary.sh "$f" "$PSC"
+            readelf="$PSC/bin/armv8-sony-linux-gnueabihf-readelf"
+        else
+            # the Pi: hard float, and nothing newer than the glibc of the image's Debian 12 (Raspberry Pi OS bookworm)
+            readelf=arm-linux-gnueabihf-readelf
+            "$readelf" -A "$f" | grep -q 'Tag_ABI_VFP_args: VFP registers'
+            if "$readelf" --dyn-syms -W "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sed 's/GLIBC_2\.//' | awk '$1 > 36 { bad = 1 } END { exit !bad }'; then
+                echo "    ERROR: $(basename "$f") needs a glibc newer than 2.36" >&2
+                return 1
+            fi
+        fi
+        needed=$("$readelf" -d "$f" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
         echo "    needs: $(echo $needed)"
         for lib in $needed; do
             if echo "$lib" | grep -qE "$PE_ALLOWED_LIBS"; then continue; fi
@@ -92,7 +143,8 @@ check_binary() {
     echo "    every library is the console's, SDL2 or the mod's own"
 }
 # the console's own system (glibc family, the compiler runtime, ALSA, udev, wayland, EGL/GLES2) and the launcher's
-# SDL2 family; libudev and libxkbcommon are in the console's firmware (the 2020 mods needed them too)
+# SDL2 family; libudev and libxkbcommon are in the console's firmware (the 2020 mods needed them too). The Pi takes the
+# same list: they are its own system libraries too (the system's SDL2 depends on them)
 export PE_ALLOWED_LIBS='^(libc|libm|libdl|libpthread|librt|libresolv|libutil|ld-linux[-a-z0-9_.]*|libgcc_s|libstdc\+\+|libSDL2-2\.0|libSDL2_image-2\.0|libSDL2_mixer-2\.0|libSDL2_ttf-2\.0|libasound|libudev|libxkbcommon|libEGL|libGLESv2|libGL|libwayland-[a-z]+|libdrm)\.so'
 
 # a data port: the package zip (no program to check, nothing to compile, no source archive)
@@ -111,7 +163,12 @@ build_package() { # build_package <id> <port dir>
 build_port() { # build_port <id>
     local id="$1" dir="$ROOT/ports/$1"
     [ -f "$dir/port.ini" ] || { echo "no such port: $id" >&2; exit 2; }
-    banner "$id"
+    banner "$id ($TARGET)"
+    # game data is the same on every machine: the packages the psc build makes are the Pi's too, not rebuilt
+    if [ "$TARGET" != psc ] && grep -qE '^\[(package|datapackage)\]' "$dir/port.ini"; then
+        echo "    game data: shared with the psc build, nothing to build for $TARGET"
+        return
+    fi
     if grep -q '^\[package\]' "$dir/port.ini"; then
         build_package "$id" "$dir"
         return
@@ -120,6 +177,8 @@ build_port() { # build_port <id>
 
     export PORT_DIR=$dir BUILD_DIR=$ROOT/build/$id
     export SRC=$BUILD_DIR/src STAGE=$BUILD_DIR/stage
+    # the CMake toolchain file of the port: its own psc.cmake on the console (it names the console's SDL2), the shared one on the Pi
+    if [ "$TARGET" = psc ]; then export TOOLCHAIN_CMAKE=$dir/psc.cmake; else export TOOLCHAIN_CMAKE=$TOOLCHAIN_PLAIN; fi
     rm -rf "$BUILD_DIR"
     mkdir -p "$SRC" "$STAGE"
     # the pinned upstream as it is in git (not what a checkout's line-ending or filter settings made of it); the
@@ -138,6 +197,11 @@ build_port() { # build_port <id>
     local p
     for p in "$dir"/patches/*.patch; do
         [ -f "$p" ] || continue
+        # NNNN-name.psc.patch / NNNN-name.rpi.patch belong to one target; the rest to both (applied in name order)
+        case "$p" in
+            *.psc.patch) [ "$TARGET" = psc ] || continue ;;
+            *.rpi.patch) [ "$TARGET" = rpi ] || continue ;;
+        esac
         echo "patch: ${p#"$ROOT"/}"
         patch -d "$SRC" -p1 --no-backup-if-mismatch < "$p"
     done
@@ -154,10 +218,10 @@ build_port() { # build_port <id>
     fi
 
     mkdir -p out
-    python3 tools/mkmod.py "$id" --stage "$STAGE" --src "$SRC" --out out
+    python3 tools/mkmod.py "$id" --target "$TARGET" --stage "$STAGE" --src "$SRC" --out out
 }
 
-[ $# -gt 0 ] || { echo "usage: $0 <port>|all" >&2; exit 2; }
+[ $# -gt 0 ] || { echo "usage: $0 [--target psc|rpi] <port>|all" >&2; exit 2; }
 for target in "$@"; do
     case "$target" in
         all) for d in ports/*/; do build_port "$(basename "$d")"; done ;;

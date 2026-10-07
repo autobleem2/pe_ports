@@ -10,14 +10,18 @@ port_build() {
     # 1. the tools, natively (the build image's own compiler, none of the console's environment)
     (
         unset CC CXX STRIP AR PKG_CONFIG_LIBDIR SDL_PREFIX CFLAGS CXXFLAGS
-        export PATH="${PATH#"$PSC/sdl2/bin":}"
+        export PATH="$NATIVE_PATH"
         cmake -S "$SRC" -B "$host" -G Ninja -DCMAKE_BUILD_TYPE=Release -DNO_GTK=ON
         ninja -C "$host" -j "$JOBS" zipdir lemon re2c updaterevision arithchk qnan
     )
 
-    # 2. the program for the console
-    cmake -S "$SRC" -B "$cross" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" -DIMPORT_EXECUTABLES="$host/ImportExecutables.cmake" \
+    # 2. the program for the console (the Pi: the image's gcc 12 no longer pulls <limits> in by itself, which scripting/types.cpp
+    # relies on - the header is included for every file instead of editing the pinned source; the toolchain file's
+    # flags are given again, a CMAKE_CXX_FLAGS of ours replaces them)
+    local extra=()
+    [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$ARM_FLAGS -include limits")
+    cmake -S "$SRC" -B "$cross" -G Ninja -DCMAKE_BUILD_TYPE=Release ${extra[@]+"${extra[@]}"} \
+        -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DIMPORT_EXECUTABLES="$host/ImportExecutables.cmake" \
         -DNO_OPENMP=ON -DFORCE_INTERNAL_ZLIB=ON -DNO_GTK=ON -DCMAKE_SKIP_RPATH=ON \
         -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG"
     ninja -C "$cross" -j "$JOBS"
@@ -43,13 +47,17 @@ port_build() {
     mkdir -p "$BUILD_DIR/openal/build/native-tools"
     (
         unset CC CXX STRIP AR PKG_CONFIG_LIBDIR SDL_PREFIX CFLAGS CXXFLAGS
-        export PATH="${PATH#"$PSC/sdl2/bin":}"
+        export PATH="$NATIVE_PATH"
         cd "$BUILD_DIR/openal/build/native-tools"
         cmake -G Ninja "$BUILD_DIR/openal/$oal/native-tools"
         ninja
     )
-    cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
+    # (the Pi's gcc 12 forbids common symbols by default and OpenAL Soft 1.19.1 defines its tables in a header: -fcommon is the
+    # old compilers' behaviour; the toolchain file's flags are given again, a CMAKE_C_FLAGS of ours replaces them)
+    local oal_extra=()
+    [ "$TARGET" = psc ] || oal_extra=(-DCMAKE_C_FLAGS="$ARM_FLAGS -fcommon")
+    cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release ${oal_extra[@]+"${oal_extra[@]}"} \
+        -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_INSTALL=OFF \
         -DALSOFT_REQUIRE_ALSA=ON -DALSOFT_BACKEND_PULSEAUDIO=OFF -DALSOFT_BACKEND_OSS=OFF \
         -DALSOFT_BACKEND_SOLARIS=OFF -DALSOFT_BACKEND_SNDIO=OFF -DALSOFT_BACKEND_PORTAUDIO=OFF \

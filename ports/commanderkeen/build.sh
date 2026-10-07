@@ -14,10 +14,10 @@ port_build() {
     export PE_EXTRA_ROOT="$BUILD_DIR/boost/$boost"
 
     cmake -S "$SRC" -B "$BUILD_DIR/cmake" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_TOOLCHAIN_FILE="$PORT_DIR/psc.cmake" \
+        -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" \
         -DUSE_OPENGL=No -DDOWNLOADER=No -DBUILD_TARGET=LINUX -DCMAKE_SKIP_RPATH=ON \
         -DBoost_INCLUDE_DIR="$PE_EXTRA_ROOT" -DBoost_NO_BOOST_CMAKE=ON \
-        -DZLIB_LIBRARY="$PSC/sysroot/usr/lib/arm-linux-gnueabihf/libz.a" -DZLIB_INCLUDE_DIR="$PSC/sysroot/usr/include"
+        -DZLIB_LIBRARY="$ZLIB_A" -DZLIB_INCLUDE_DIR="$ZLIB_INC"
     ninja -C "$BUILD_DIR/cmake" -j "$JOBS"
     cp "$BUILD_DIR/cmake/src/CGeniusExe" "$STAGE/CGeniusExe"
     "$STRIP" "$STAGE/CGeniusExe"

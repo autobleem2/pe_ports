@@ -129,6 +129,32 @@ axis. `port.ini`'s `[pad]` records that, the same for every port:
 The DOS games' pad maps are the packages' own (`ports/liero/files/mapper.txt`, `ports/xargon/files/mapper.txt`): the
 keys each game's own documentation lists, on the same pad.
 
+### The Raspberry Pi 32-bit (`--target rpi`)
+
+The eight engines (BlastEm, Commander Genius, DOSBox, ioquake3, LZDoom, OpenJazz, OpenLara, TyrQuake) are also built for the
+Pi 400 (Raspberry Pi OS armhf): `ci/build.sh --target rpi <port>|all` in the same image, with its `arm-linux-gnueabihf`
+compiler against the Debian 12 armhf libraries (the system's SDL2, GLES2, EGL, ALSA; nothing of SDL ships) - `ci/rpi.cmake` is
+the CMake toolchain file of the CMake ports and of gl4es / OpenAL Soft. The result is `<id>-<version>-rpi.mod`, a package of
+the same format with `Platform: RPI armhf` in the control file (`proc_pe` turns it into an App with `Exec.rpi=run.sh`, so
+a machine lists only its own packages) and the same source archive as the console's (its `BUILD-INFO.txt` names both
+toolchains). The game data (`freedoomdata`, `openarenadata`, the DOS games) is the same package on every machine and is not
+rebuilt: `--target rpi` skips those ports and `tools/store_item.py --target rpi` takes their files from the console's build.
+What differs per target in a port: `NNNN-name.psc.patch` / `.rpi.patch` apply to one target only (the rest to both, in name
+order), `port.ini` takes `args.rpi=`, `env.rpi=`, `pre.rpi=` and `changes.rpi=` next to the common keys, and `build.sh` reads
+`$TARGET`. The pad is the same: the Pi runs the launcher's virtual console pad (`psc-kernel`), so the pad patches and bindings
+are shared; the launcher's Pi package carries the PE runner (`rc/pe_run.sh`) these packages start through.
+
+| port | what the Pi build changes |
+|---|---|
+| blastem | nothing (portable cores, GLES2 through SDL2); `pkg-config` finds the armhf `glesv2.pc` itself |
+| commanderkeen | `ci/rpi.cmake`, the system's SDL2 family |
+| dosbox | `-std=gnu++14` (the console's gcc 6 dialect; gcc 12 defaults to C++17, which refuses the tree's exception specifications) |
+| ioquake3 | gl4es is built for the Pi too and sits on the system SDL's KMSDRM GLES2 context |
+| lzdoom | `ci/rpi.cmake`; OpenAL Soft is built for the Pi (ALSA) and ships in `lib/` |
+| openjazz | nothing |
+| openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder |
+| tyrquake | the console's ABGR8888 / desktop-size patch is not applied |
+
 ### Where the source goes
 
 `SOURCE.txt` in each package names the address of its source archive:
