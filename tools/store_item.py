@@ -4,8 +4,8 @@ Store's catalog"), ready for `repo_publish.sh store psc ...` (`--target rpi|rpi6
 
     tools/store_item.py --out out --dest store-out
 
-For every ports/<id>/port.ini whose out/<id>-<version>.mod exists, <dest>/ gets the .mod, <id>.png (the generated
-icon, the same as inside the package) and <id>.item.json: id pe/<id>, kind pe, title, version, author, licence,
+For every ports/<id>/port.ini whose out/<id>-<version>.mod exists, <dest>/ gets the .mod, <id>.png (the package's own icon:
+port.ini's icon_file when it names one, else the generated icon - the same as inside the package) and <id>.item.json: id pe/<id>, kind pe, title, version, author, licence,
 description from port.ini, `source_url` = the package's source archive on the site (AB_SOURCE_BASE, the address
 mkmod.py writes into SOURCE.txt), `requires` (port.ini's optional `requires=`, port ids, written as pe/<id>: what
 must be installed first - the ioquake3 package needs the openarenadata one) and the one .mod in files[] (the
@@ -38,7 +38,7 @@ def package_item(cfg, out, dest):
     kinds, _games = mkmod.package_entries(cfg)
     shutil.copyfile(os.path.join(out, zipname), os.path.join(dest, zipname))
     with open(os.path.join(dest, pid + ".png"), "wb") as f:
-        f.write(mkmod.make_icon(pid, p["icon_text"].split("|")))
+        f.write(mkmod.port_icon(p))
     item = {
         "id": "pkg/" + pid,
         "kind": "package",
@@ -93,7 +93,7 @@ def main():
             sys.exit("%s is not in %s - a package without its source is not published" % (source, a.out))
         shutil.copyfile(os.path.join(a.out, mod), os.path.join(a.dest, mod))
         with open(os.path.join(a.dest, pid + ".png"), "wb") as f:
-            f.write(mkmod.make_icon(pid, p["icon_text"].split("|")))
+            f.write(mkmod.port_icon(p))
         item = {
             "id": "pe/" + pid,
             "kind": "pe",

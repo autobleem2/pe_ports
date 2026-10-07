@@ -77,12 +77,12 @@ def test_descriptor_from_port_ini():
 
 
 def expected_category(pid):
-    """the owner's mapping: game ports are games, DOSBox an emulator, the game-data mods packages"""
+    """the owner's mapping: game ports are games, DOSBox and BlastEm emulators, the game-data mods packages"""
     with open(os.path.join(ROOT, "ports", pid, "port.ini"), encoding="utf-8") as f:
         text = f.read()
     if "\nkind=data" in text:
         return "packages"
-    return "emulators" if pid == "dosbox" else "games"
+    return "emulators" if pid in ("dosbox", "blastem") else "games"
 
 
 def test_port_category_is_lower_case_and_checked():
@@ -194,3 +194,20 @@ def test_release_publish_into_a_temp_site_tree():
         with open(os.path.join(site, "store", "index.html"), encoding="utf-8") as f:
             page = f.read()
         assert "PE Apps</h2>" in page and page.count("Source code") == len(ports)
+
+
+def test_the_store_image_is_the_ports_own_icon_file():
+    """DOSBox's drawn floppy (port.ini icon_file) is the Store image, not the generated text icon; a port without one
+    keeps the generated icon."""
+    with tempfile.TemporaryDirectory() as w:
+        out, dest = os.path.join(w, "out"), os.path.join(w, "dest")
+        release(out, ports=("dosbox", "commanderkeen"))
+        r = run("--out", out, "--dest", dest, "--only", "dosbox", "commanderkeen")
+        assert r.returncode == 0, r.stderr
+        with open(os.path.join(ROOT, "ports", "dosbox", "files", "icon.png"), "rb") as f:
+            drawn = f.read()
+        with open(os.path.join(dest, "dosbox.png"), "rb") as f:
+            assert f.read() == drawn
+        with open(os.path.join(dest, "commanderkeen.png"), "rb") as f:
+            png = f.read()
+        assert png[:8] == b"\x89PNG\r\n\x1a\n" and png != drawn

@@ -157,7 +157,8 @@ def test_the_smd_loader_leaves_the_file_to_load_media():
 def test_the_port_carries_the_fixes_in_its_version_and_changes():
     with open(os.path.join(PORT, "port.ini"), encoding="utf-8") as f:
         ini = f.read()
-    assert re.search(r"^version=1\.0\.0-[4-9]$", ini, re.M)  # -4 had both fixes; later revisions keep them
+    assert re.search(r"^version=1\.0\.0-[6-9]$", ini, re.M)  # -4 had both fixes, -5 the Pi font, -6 files it as an emulator
+    assert re.search(r"^category=emulators$", ini, re.M)
     assert "0004-aligned-calloc-offset.patch" in ini and "0005-smd-close-once.patch" in ini
 
 
