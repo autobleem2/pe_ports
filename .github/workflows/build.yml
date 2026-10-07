@@ -40,7 +40,7 @@ jobs:
           docker pull "$image"
           echo "AB_BUILD_IMAGE=$image" >> "$GITHUB_ENV"
           echo "AB_BUILD_IMAGE_DIGEST=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}' | sed 's/.*@//')" >> "$GITHUB_ENV"
-      - name: Build every port (the console, then the Raspberry Pi 32-bit: the engines again, the game data is shared)
+      - name: "Build every port (the console, then the Raspberry Pi 32-bit: the engines again, the game data is shared)"
         run: |
           for target in psc rpi; do
             docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src -e HOME=/tmp \
