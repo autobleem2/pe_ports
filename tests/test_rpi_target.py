@@ -214,6 +214,7 @@ def test_patches_for_one_target_say_so_in_their_name():
             seen[(pid, name)] = True
     assert ("tyrquake", "0001-psc-video-1280x720-abgr.psc.patch") in seen, "the console's ABGR/720p window is the console's only"
     assert ("tyrquake", "0002-sdl-gamecontroller.patch") in seen
+    assert ("tyrquake", "0003-nearest-fullscreen-mode.linux.patch") in seen, "a PC with no 1280x720 mode: the nearest mode, not an exit"
     assert ("blastem", "0006-builtin-font.linux.patch") in seen, "Nuklear's built-in font on every Linux machine (DejaVu aborts its baker)"
 
 
@@ -360,3 +361,25 @@ def test_the_pc_stick_is_plain_i686_like_the_launcher():
             text = f.read()
         assert "-march=i686 -mtune=generic -D_FILE_OFFSET_BITS=64" in text, rel
         assert "-msse" not in text and "-mfpmath=sse" not in text, rel
+
+
+def test_tyrquake_linux_patch_takes_the_nearest_mode_and_the_console_keeps_its_own():
+    """a PC with no 1280x720 mode exited with "Requested video mode (1280x720x32) not available": the Linux patch picks the nearest
+    mode (the command line's and the cvars' path), the console's tree is not touched by it"""
+    import shutil
+    up = os.path.join(ROOT, "ports", "tyrquake", "upstream")
+    if not os.path.exists(os.path.join(up, "common", "vid_mode.c")) or not shutil.which("patch"):
+        pytest.skip("the TyrQuake submodule or patch is missing")
+    patches = os.path.join(ROOT, "ports", "tyrquake", "patches")
+    for linux in (False, True):
+        with tempfile.TemporaryDirectory() as w:
+            tree = os.path.join(w, "src")
+            shutil.copytree(up, tree, ignore=shutil.ignore_patterns(".git"))
+            names = ["0002-sdl-gamecontroller.patch"] + (["0003-nearest-fullscreen-mode.linux.patch"] if linux else [])
+            for n in names:
+                with open(os.path.join(patches, n), "rb") as f:
+                    r = subprocess.run(["patch", "-s", "-f", "-p1", "-d", tree, "--no-backup-if-mismatch"], input=f.read(), capture_output=True)
+                assert r.returncode == 0, (n, r.stdout, r.stderr)
+            with open(os.path.join(tree, "common", "vid_mode.c"), encoding="utf-8") as f:
+                text = f.read()
+            assert ("VID_NearestMode(width, height, bpp)" in text) == linux

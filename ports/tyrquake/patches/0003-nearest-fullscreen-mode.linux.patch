@@ -1,0 +1,60 @@
+--- a/common/vid_mode.c
++++ b/common/vid_mode.c
+@@ -340,6 +340,29 @@
+     return NULL;
+ }
+ 
++/*
++ * The mode nearest to the requested size (a display with no mode of exactly that size), the first
++ * refresh rate of its group; NULL when there are no fullscreen modes at all.
++ */
++static const qvidmode_t *
++VID_NearestMode(int width, int height, int bpp)
++{
++    const qvidmode_t *mode, *best = NULL;
++    int distance, best_distance = 0;
++
++    for (mode = vid_modelist; mode - vid_modelist < vid_nummodes; mode++) {
++	if (bpp && mode->bpp != bpp)
++	    continue;
++	distance = abs(mode->width - width) + abs(mode->height - height);
++	if (!best || distance < best_distance) {
++	    best = mode;
++	    best_distance = distance;
++	}
++    }
++
++    return best;
++}
++
+ static const qvidmode_t *
+ VID_FindNextBpp(const qvidmode_t *mode)
+ {
+@@ -846,6 +869,8 @@
+     if (vid_fullscreen.value) {
+         /* Find the mode in the valid fullscreen modes list */
+         mode = VID_FindMode(width, height, bpp, refresh);
++        if (!mode)
++            mode = VID_NearestMode(width, height, bpp);
+     } else {
+         /* Set the parameters for the windowed mode */
+         vid_windowed_mode.width = width;
+@@ -1001,8 +1026,16 @@
+ 	    continue;
+ 	break;
+     }
+-    if (mode - vid_modelist == vid_nummodes)
+-	Sys_Error("Requested video mode (%dx%dx%d) not available.", width, height, bpp);
++    if (mode - vid_modelist == vid_nummodes) {
++	/* no mode of exactly that size: the nearest one the display offers */
++	mode = VID_NearestMode(width, height, bpp);
++	if (!mode)
++	    Sys_Error("Requested video mode (%dx%dx%d) not available.", width, height, bpp);
++	Sys_Printf("Requested video mode (%dx%dx%d) not available, using %dx%dx%d.\n",
++		   width, height, bpp, mode->width, mode->height, mode->bpp);
++	width = mode->width;
++	height = mode->height;
++    }
+ 
+     /* Return the highest refresh rate at this width/height/bpp */
+     for (next = mode + 1; next - vid_modelist < vid_nummodes; mode = next++) {
