@@ -19,7 +19,8 @@ port_build() {
     # relies on - the header is included for every file instead of editing the pinned source; the toolchain file's
     # flags are given again, a CMAKE_CXX_FLAGS of ours replaces them)
     local extra=()
-    [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$ARM_FLAGS -include limits")
+    # (and the image's armhf libjpeg/bzip2 would be linked as shared libraries a Pi may not have: the project's own copies)
+    [ "$TARGET" = psc ] || extra=(-DCMAKE_CXX_FLAGS="$ARM_FLAGS -include limits" -DFORCE_INTERNAL_JPEG=ON -DFORCE_INTERNAL_BZIP2=ON)
     cmake -S "$SRC" -B "$cross" -G Ninja -DCMAKE_BUILD_TYPE=Release ${extra[@]+"${extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DIMPORT_EXECUTABLES="$host/ImportExecutables.cmake" \
         -DNO_OPENMP=ON -DFORCE_INTERNAL_ZLIB=ON -DNO_GTK=ON -DCMAKE_SKIP_RPATH=ON \

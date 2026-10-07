@@ -37,6 +37,12 @@ for id in $ids; do
     list=$(cd "$app" && LD_BIND_NOW= LD_LIBRARY_PATH="$app/lib" qemu-arm -L "$ROOT" "$ROOT/lib/ld-linux-armhf.so.3" --list "./$bin" 2>&1)
     if echo "$list" | grep -q 'not found'; then echo "$list" | grep 'not found'; echo "$id: LIBRARY MISSING"; BAD=1; continue; fi
     echo "    libraries: $(echo "$list" | grep -c '=>') found, none missing"
+    # the program's own libraries (ioquake3's renderer and gl4es, LZDoom's OpenAL Soft) the same way
+    for so in $(cd "$app" && find . -maxdepth 2 -name '*.so*' -type f | sort); do
+        solist=$(cd "$app" && LD_BIND_NOW= LD_LIBRARY_PATH="$app/lib" qemu-arm -L "$ROOT" "$ROOT/lib/ld-linux-armhf.so.3" --list "$so" 2>&1)
+        if echo "$solist" | grep -q 'not found'; then echo "$solist" | grep 'not found'; echo "$id: LIBRARY MISSING for $so"; BAD=1; fi
+        echo "    own library $so: $(echo "$solist" | grep -c '=>') found"
+    done
     # 2. the program itself
     case "$id" in
         blastem)
