@@ -242,3 +242,61 @@ def test_a_missing_pi_package_stops_the_pi_release():
         r = store(out, os.path.join(w, "rpi"), "--target", "rpi")
         assert r.returncode != 0 and "blastem-%s-rpi.mod is not in" % ver in r.stderr
         assert store(out, os.path.join(w, "psc")).returncode == 0, "the console's release does not need the Pi's files"
+
+
+# ---- the Pi's first round (2026-10-07) ----------------------------------------------------------------------------
+def test_openlara_without_game_data_says_so_on_the_pi_and_the_console_is_untouched():
+    """OpenLara ends silently when none of the Tomb Raider files is there (Game::init -> Core::quit): on the Pi the
+    launch script shows the text dialog first and does not start the engine; the console's script stays as it was"""
+    with tempfile.TemporaryDirectory() as w:
+        _, files = unpack(build("openlara", "rpi", w)[0])
+        launch = files["launch.sh"].decode()
+        lines = launch.splitlines()
+        check = [l for l in lines if "sdl_text_display" in l]
+        assert len(check) == 1, launch
+        # every place the engine looks for the data (gameflow.h getGameVersion / getGameLevelFile) is tested
+        for path in ("PSXDATA/GYM.PSX", "DATA/GYM.PHD", "GYM.PHD", "DATA/GYM.SAT", "level/1/TITLE.PSX", "level/1/TITLE.PHD"):
+            assert "[ ! -e %s ]" % path in check[0], path
+        assert "exit 1" in check[0] and "PSXDATA" in check[0]
+        # the check comes before the engine, and `sh -n` takes the whole script
+        assert lines.index(check[0]) < max(i for i, l in enumerate(lines) if "./OpenLara" in l)
+        r = subprocess.run(["sh", "-n"], input=launch, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+    with tempfile.TemporaryDirectory() as w:
+        _, files = unpack(build("openlara", "psc", w)[0])
+        assert "sdl_text_display" not in files["launch.sh"].decode()
+
+
+def test_openlara_launch_script_runs_the_dialog_only_when_the_data_is_missing():
+    with tempfile.TemporaryDirectory() as w:
+        _, files = unpack(build("openlara", "rpi", w)[0])
+        app = os.path.join(w, "app")
+        bindir = os.path.join(w, "bin")
+        os.makedirs(os.path.join(app, "PSXDATA"))
+        os.makedirs(bindir)
+        shown = os.path.join(w, "shown.txt")
+        with open(os.path.join(bindir, "sdl_text_display"), "w") as f:
+            f.write('#!/bin/sh\necho "$1" > "%s"\n' % shown)
+        os.chmod(os.path.join(bindir, "sdl_text_display"), 0o755)
+        # the engine: records that it was started
+        with open(os.path.join(app, "OpenLara"), "w") as f:
+            f.write('#!/bin/sh\necho started > "%s/engine.txt"\n' % w)
+        os.chmod(os.path.join(app, "OpenLara"), 0o755)
+        script = files["launch.sh"].decode()
+        script = script.replace('. "/var/volatile/project_eris.cfg"', 'PROJECT_ERIS_PATH="%s"\nRUNTIME_LOG_PATH="%s"\nPE_RUN_DIR="%s"' % (w, w, w))
+        script = script.replace('cd "/var/volatile/launchtmp"', 'cd "%s"' % app).replace("HOME=/var/volatile/launchtmp ", "")
+        script = script.replace("sleep 10", "sleep 0").replace("/data/power/disable", os.path.join(w, "power"))
+        with open(os.path.join(w, "launch.sh"), "w") as f:
+            f.write(script)
+        env = dict(os.environ)
+        # no data: the dialog, no engine, exit 1
+        r = subprocess.run(["sh", os.path.join(w, "launch.sh")], capture_output=True, text=True, env=env)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert os.path.exists(shown) and not os.path.exists(os.path.join(w, "engine.txt"))
+        assert "Tomb Raider" in open(shown).read()
+        # data there: the engine starts, no dialog
+        os.remove(shown)
+        open(os.path.join(app, "PSXDATA", "GYM.PSX"), "w").close()
+        r = subprocess.run(["sh", os.path.join(w, "launch.sh")], capture_output=True, text=True, env=env)
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert os.path.exists(os.path.join(w, "engine.txt")) and not os.path.exists(shown)

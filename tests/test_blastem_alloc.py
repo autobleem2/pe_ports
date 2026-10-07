@@ -3,6 +3,7 @@ Upstream stores the alignment instead of the real shift, which only shows where 
 (32-bit ARM glibc, the console) - on a PC it always returns 16-aligned memory and the shift is always 16. The test
 compiles the two functions with the host cc against a fake calloc that returns pointers 8 mod 16 (and 0 mod 16)."""
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -156,5 +157,32 @@ def test_the_smd_loader_leaves_the_file_to_load_media():
 def test_the_port_carries_the_fixes_in_its_version_and_changes():
     with open(os.path.join(PORT, "port.ini"), encoding="utf-8") as f:
         ini = f.read()
-    assert "version=1.0.0-4" in ini
+    assert re.search(r"^version=1\.0\.0-[4-9]$", ini, re.M)  # -4 had both fixes; later revisions keep them
     assert "0004-aligned-calloc-offset.patch" in ini and "0005-smd-close-once.patch" in ini
+
+
+def nuklear_font_init(patches):
+    """blastem_nuklear.c's font_init with the given patches applied (the patches that change that file, in order)"""
+    tmp = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(tmp, "nuklear_ui"))
+        for name in ("blastem_nuklear.c", "blastem_nuklear.h", "font.c"):
+            shutil.copy(os.path.join(PORT, "upstream", "nuklear_ui", name), os.path.join(tmp, "nuklear_ui", name))
+        for patch in patches:
+            r = subprocess.run(["git", "apply", os.path.join(PORT, "patches", patch)], cwd=tmp, capture_output=True, text=True)
+            assert r.returncode == 0, patch + ": " + r.stderr
+        with open(os.path.join(tmp, "nuklear_ui", "blastem_nuklear.c"), encoding="utf-8") as f:
+            src = f.read()
+        return src[src.index("static void font_init"):src.index("static void texture_init")]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_the_pi_menu_never_loads_a_system_font():
+    """DejaVu Sans, the font fontconfig names first on a Pi, aborts Nuklear's font baker (the 2020 console has no
+    fontconfig and no fonts, so it always used the built-in one): the Pi patch drops the system font lookup"""
+    base = ["0003-psc-default-font.patch"]
+    assert "default_font(&font_size)" in nuklear_font_init(base)  # the console's source still asks fontconfig (finds none)
+    pi = nuklear_font_init(base + ["0006-builtin-font.rpi.patch"])
+    assert "default_font(" not in pi and "uint8_t *font = NULL;" in pi
+    assert "nk_font_atlas_add_default" in pi  # what is then used: Nuklear's own ProggyClean

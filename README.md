@@ -146,13 +146,13 @@ are shared; the launcher's Pi package carries the PE runner (`rc/pe_run.sh`) the
 
 | port | what the Pi build changes |
 |---|---|
-| blastem | nothing (portable cores, GLES2 through SDL2); `pkg-config` finds the armhf `glesv2.pc` itself |
+| blastem | the menu uses Nuklear's built-in font only (`patches/0006-builtin-font.rpi.patch`: DejaVu Sans, which fontconfig names first on a Pi, aborts Nuklear's font baker); portable cores, GLES2 through SDL2; `pkg-config` finds the armhf `glesv2.pc` itself |
 | commanderkeen | `ci/rpi.cmake`, the system's SDL2 family |
 | dosbox | `-std=gnu++14` (the console's gcc 6 dialect; gcc 12 defaults to C++17, which refuses the tree's exception specifications) |
 | ioquake3 | gl4es is built for the Pi too and sits on the system SDL's KMSDRM GLES2 context |
 | lzdoom | `ci/rpi.cmake`; OpenAL Soft is built for the Pi (ALSA) and ships in `lib/` |
 | openjazz | nothing |
-| openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder |
+| openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder; `patches/0002-sdl2-log-errors.rpi.patch` logs SDL's errors; the launch script shows a text screen and stops when the Tomb Raider data is missing (`pre.rpi`) |
 | tyrquake | the console's ABGR8888 / desktop-size patch is not applied |
 
 ### Where the source goes
