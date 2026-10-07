@@ -55,7 +55,7 @@ games, emulators, tools, media, other or packages (game data) - written into the
 App in that category as "<name> (mod)"), `licence_files` (paths in the
 upstream, copied into the package's `licences/`), upstream URL and commit, publisher/year (the launcher shows
 them), `copyright` and `changes` (printed in `SOURCE.txt`, `;`-separated), `icon_text` (the generated icon's
-lines, `|`-separated), optional `export_exclude` (upstream files that are not source of the program and stay out of
+lines, `|`-separated), optional `icon_file` (a PNG of the port's folder used as the App's image instead of the generated icon), optional `export_exclude` (upstream files that are not source of the program and stay out of
 the build and the source archive), optional `requires` (port ids that must be installed first: the Store item's
 `requires`), optional `kind=data` (a package of game files with no program: `ci/build.sh` checks no binary; its
 `ports/<id>/upstream/` holds only a note naming the pinned archive the build fetches) and `xz_preset` (the package's

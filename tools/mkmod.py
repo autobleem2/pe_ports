@@ -152,6 +152,19 @@ def make_icon(port_id, lines, size=256):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b"")
 
 
+def port_icon(p):
+    """The App's image: port.ini's `icon_file` (a PNG of the port's own folder, e.g. a drawn icon) when it names one,
+    else the plain generated icon."""
+    name = p.get("icon_file", "").strip()
+    if not name:
+        return make_icon(p["id"], p["icon_text"].split("|"))
+    with open(os.path.join(ROOT, "ports", p["id"], name), "rb") as f:
+        data = f.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise SystemExit("port %s: icon_file %s is not a PNG" % (p["id"], name))
+    return data
+
+
 # ---------------------------------------------------------------------------------------------------------
 # tar and ar helpers
 # ---------------------------------------------------------------------------------------------------------
@@ -493,7 +506,7 @@ def make_package(cfg, stage, out_dir, mtime):
     with open(os.path.join(stage, "package.ini"), "w", newline="\n", encoding="utf-8") as f:
         f.write(ini)
     with open(os.path.join(stage, image), "wb") as f:
-        f.write(make_icon(pid, p["icon_text"].split("|")))
+        f.write(port_icon(p))
     with open(os.path.join(stage, "SOURCE.txt"), "w", newline="\n", encoding="utf-8") as f:
         f.write(package_source_txt(cfg))
     names = []
@@ -607,7 +620,7 @@ def main():
         with open(os.path.join(folder, "launcher.cfg"), "w", newline="\n") as f:
             f.write(launcher_cfg(cfg))
         with open(os.path.join(folder, filename + ".png"), "wb") as f:
-            f.write(make_icon(pid, p["icon_text"].split("|")))
+            f.write(port_icon(p))
         with open(os.path.join(folder, "SOURCE.txt"), "w", newline="\n") as f:
             f.write(source_txt(cfg, source_url, sha, digest, image))
         os.makedirs(os.path.join(folder, "licences"), exist_ok=True)
