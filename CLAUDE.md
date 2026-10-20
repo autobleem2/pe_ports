@@ -36,6 +36,7 @@ What this repository is and its layout: `README.md`. Rules that matter when you 
   the target). A patch for one target only is `NNNN-name.psc.patch` / `.rpi.patch`; per-target `port.ini` keys are `args.rpi`,
   `env.rpi`, `pre.rpi`, `changes.rpi`. Game data is never built per target. A change to an engine's shared files is checked on
   both targets (`tests/qemu/rpi_smoke.sh` for the Pi).
+- **rpi64:** `ci/build.sh --target rpi64 <port>` builds an aarch64 `<id>-<version>-rpi64.mod` (`Platform: RPI arm64`, `ci/rpi64.cmake`) for openjazz, commanderkeen, tyrquake and blastem; patches `.rpi64.patch`, keys `args|env|pre|changes.rpi64` (no fallback to the `rpi` ones); the workflow does not build or publish it yet.
 - **A release is a gate:** a port that fails to build on a tag stops the whole `build` job, so `site` never runs and
   nothing of that tag is published (`store_item.py` also refuses a missing `.mod` or source). Fix the port and tag again.
 - A package's launcher_filename is the key of its program in the launcher's `rc/pe_compat.ini`: keep `[pad]` in

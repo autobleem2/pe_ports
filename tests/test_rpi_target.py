@@ -117,7 +117,7 @@ def test_one_source_archive_serves_both_targets():
             names = t.getnames()
             info = t.extractfile([n for n in names if n.endswith("BUILD-INFO.txt")][0]).read().decode()
         assert any(n.endswith("/ci/rpi.cmake") for n in names), "the Pi's toolchain file is part of the source"
-        assert "toolchain (psc):" in info and "toolchain (rpi):" in info and "[--target psc|rpi]" in info
+        assert "toolchain (psc):" in info and "toolchain (rpi):" in info and "[--target psc|rpi|rpi64]" in info
 
 
 def test_a_launcher_value_can_differ_per_target():
@@ -173,7 +173,7 @@ def test_the_ports_name_no_console_flag_any_more():
 
 
 def test_patches_for_one_target_say_so_in_their_name():
-    name_re = re.compile(r"^\d{4}-[a-z0-9-]+(\.psc|\.rpi)?\.patch$")
+    name_re = re.compile(r"^\d{4}-[a-z0-9-]+(\.psc|\.rpi|\.rpi64)?\.patch$")
     seen = {}
     for pid in os.listdir(os.path.join(ROOT, "ports")):
         folder = os.path.join(ROOT, "ports", pid, "patches")

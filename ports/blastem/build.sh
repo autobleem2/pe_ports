@@ -14,8 +14,10 @@ port_build() {
     fi
     # (the Pi: the image's armhf sdl2.pc and glesv2.pc, PKG_CONFIG_LIBDIR from ci/build.sh)
     # OPT is what the Makefile puts into both CFLAGS and LDFLAGS; CPU is not x86, so it builds the portable cores
-    make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=armv7 USE_GLES=1 \
-        OPT="-O2 -flto=$JOBS $ARM_FLAGS -marm -DAB_PSC"
+    # (-marm picks the 32-bit ARM instruction set and does not exist on aarch64)
+    if [ "$TARGET" = rpi64 ]; then cpu=aarch64 isa=; else cpu=armv7 isa=-marm; fi
+    make -C "$SRC" -j "$JOBS" blastem CC="$CC" OS=Linux CPU=$cpu USE_GLES=1 \
+        OPT="-O2 -flto=$JOBS $ARM_FLAGS $isa -DAB_PSC"
     cp "$SRC/blastem" "$STAGE/blastem"
     "$STRIP" "$STAGE/blastem"
 

@@ -155,6 +155,22 @@ are shared; the launcher's Pi package carries the PE runner (`rc/pe_run.sh`) the
 | openlara | upstream's SDL2 + GLES2 platform (`src/platform/sdl2`) instead of the console's wayland-egl/evdev one; `HOME` is the App's folder; `patches/0002-sdl2-log-errors.rpi.patch` logs SDL's errors; the launch script shows a text screen and stops when the Tomb Raider data is missing (`pre.rpi`) |
 | tyrquake | the console's ABGR8888 / desktop-size patch is not applied |
 
+### The Raspberry Pi 64-bit (`--target rpi64`)
+
+`ci/build.sh --target rpi64 <port>` builds an aarch64 package for Raspberry Pi OS arm64: the image's `aarch64-linux-gnu`
+compiler against the Debian 12 arm64 libraries (the system's SDL2, GLES2, EGL, ALSA), `ci/rpi64.cmake` for the CMake ports.
+The result is `<id>-<version>-rpi64.mod` with `Platform: RPI arm64` and the same source archive as the other targets. So far
+four engines have a 64-bit build (OpenJazz, Commander Genius, TyrQuake, BlastEm); the rest are a later step. `.rpi64.patch`
+files and `args.rpi64=`, `env.rpi64=`, `pre.rpi64=`, `changes.rpi64=` apply to this target only - they do not fall back to the
+`rpi` ones, only to the common keys. The `.rpi.patch` files are not applied. A v* release does not publish rpi64 packages yet.
+
+| port | what the rpi64 build changes |
+|---|---|
+| blastem | `CPU=aarch64` (portable cores) and no `-marm` (a 32-bit ARM switch); the built-in font patch as `patches/0006-builtin-font.rpi64.patch` |
+| commanderkeen | `ci/rpi64.cmake`; nothing else |
+| openjazz | nothing (`ARM_FLAGS` has no float-ABI or NEON switch on aarch64) |
+| tyrquake | the console's ABGR8888 / desktop-size patch is not applied |
+
 ### Where the source goes
 
 `SOURCE.txt` in each package names the address of its source archive:
