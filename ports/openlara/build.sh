@@ -1,7 +1,7 @@
 # OpenLara: upstream's own PlayStation Classic target (src/platform/psc/build.sh) with our compiler and flags.
 # Sourced by ci/build.sh with $SRC (patched upstream), $STAGE (the launcher folder's files), $CXX, $ARM_FLAGS.
 port_build() {
-    if [ "$TARGET" = rpi ]; then
+    if [ "$TARGET" = rpi ] || [ "$TARGET" = rpi64 ]; then
         # the Pi has no compositor: upstream's psc platform (wayland-egl, evdev) is the console's; the SDL2 + GLES2 one
         # (src/platform/sdl2, KMSDRM through the system's SDL2) is what runs here, the pad through SDL's game controller
         # (the launcher's controller database, SDL_GAMECONTROLLERCONFIG_FILE)
