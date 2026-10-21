@@ -1,0 +1,58 @@
+--- a/code/asm/ftola.c	2026-10-21 05:18:39.843908107 +0100
++++ b/code/asm/ftola.c	2026-10-21 05:19:24.316469295 +0100
+@@ -28,6 +28,21 @@
+  * GNU inline asm ftol conversion functions using SSE or FPU
+  */
+ 
++long qftolx87(float f);
++int qvmftolx87(void);
++
++#ifndef __SSE__
++/* no SSE in this build (-mno-sse): the x87 versions stand in */
++long qftolsse(float f)
++{
++  return qftolx87(f);
++}
++
++int qvmftolsse(void)
++{
++  return qvmftolx87();
++}
++#else
+ long qftolsse(float f)
+ {
+   long retval;
+@@ -57,6 +72,7 @@
+   
+   return retval;
+ }
++#endif
+ 
+ long qftolx87(float f)
+ {
+--- a/code/asm/snapvector.c	2026-10-21 05:18:39.843908107 +0100
++++ b/code/asm/snapvector.c	2026-10-21 05:19:24.320469346 +0100
+@@ -28,6 +28,15 @@
+  * See MASM snapvector.asm for commentary
+  */
+ 
++void qsnapvectorx87(vec3_t vec);
++
++#ifndef __SSE__
++/* no SSE in this build (-mno-sse): the x87 version stands in */
++void qsnapvectorsse(vec3_t vec)
++{
++	qsnapvectorx87(vec);
++}
++#else
+ static unsigned char ssemask[16] __attribute__((aligned(16))) =
+ {
+ 	"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00\x00\x00\x00"
+@@ -52,6 +61,7 @@
+ 	);
+ 	
+ }
++#endif
+ 
+ #define QROUNDX87(src) \
+ 	"flds " src "\n" \
