@@ -88,8 +88,19 @@ elif [ "$TARGET" = pcusb ]; then
     export TOOLCHAIN_PLAIN="$ROOT/ci/pcusb.cmake"
     export PE_TRIPLE
     mkdir -p "$ROOT/build/shim"
-    printf '%s\n' '#!/bin/sh' 'exec gcc -m32 "$@"' > "$ROOT/build/shim/i386-gcc"
-    printf '%s\n' '#!/bin/sh' 'exec g++ -m32 "$@"' > "$ROOT/build/shim/i386-g++"
+    # the image's 32-bit x86 cross compiler when it has one (the plain gcc -m32 needs the 32-bit libgcc of gcc-multilib), looking
+    # for the i386 multiarch libraries too; otherwise gcc -m32
+    if command -v i686-linux-gnu-gcc > /dev/null 2>&1; then
+        pc_cc="i686-linux-gnu-gcc -L/usr/lib/$PE_TRIPLE -Wl,-rpath-link,/usr/lib/$PE_TRIPLE"
+        pc_cxx="i686-linux-gnu-g++ -L/usr/lib/$PE_TRIPLE -Wl,-rpath-link,/usr/lib/$PE_TRIPLE"
+    else
+        pc_cc="gcc -m32"
+        pc_cxx="g++ -m32"
+    fi
+    echo "pcusb compiler: $pc_cc"
+    ls -d /usr/i686-linux-gnu /usr/lib/gcc-cross/i686-linux-gnu/* /usr/lib/gcc/x86_64-linux-gnu/*/32 /usr/lib/$PE_TRIPLE /usr/include/$PE_TRIPLE 2>&1 | sed 's/^/    /' || true
+    printf '%s\n' '#!/bin/sh' "exec $pc_cc \"\$@\"" > "$ROOT/build/shim/i386-gcc"
+    printf '%s\n' '#!/bin/sh' "exec $pc_cxx \"\$@\"" > "$ROOT/build/shim/i386-g++"
     printf '%s\n' '#!/bin/sh' 'exec pkg-config sdl2 "$@"' > "$ROOT/build/shim/sdl2-config"
     chmod +x "$ROOT/build/shim/i386-gcc" "$ROOT/build/shim/i386-g++" "$ROOT/build/shim/sdl2-config"
     export PATH="$ROOT/build/shim:$PATH"

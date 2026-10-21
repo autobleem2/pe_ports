@@ -116,9 +116,11 @@ def test_pcusb_build_environment(fake_tree):
     assert "MKMOD fake --target pcusb " in r.stdout
     shim = os.path.join(fake_tree, "build", "shim")
     with open(os.path.join(shim, "i386-gcc")) as f:
-        assert "exec gcc -m32" in f.read()
+        text = f.read()
+        assert "exec gcc -m32 " in text or "exec i686-linux-gnu-gcc " in text
     with open(os.path.join(shim, "i386-g++")) as f:
-        assert "exec g++ -m32" in f.read()
+        text = f.read()
+        assert "exec g++ -m32 " in text or "exec i686-linux-gnu-g++ " in text
 
 
 def test_env_variable_selects_pcusb(fake_tree):
