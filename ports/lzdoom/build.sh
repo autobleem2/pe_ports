@@ -57,8 +57,6 @@ port_build() {
     # old compilers' behaviour; the toolchain file's flags are given again, a CMAKE_C_FLAGS of ours replaces them)
     local oal_extra=()
     [ "$TARGET" = psc ] || oal_extra=(-DCMAKE_C_FLAGS="$ARM_FLAGS -fcommon")
-    # (the PC stick has no SSE2: its mixers are the plain C ones)
-    [ "$TARGET" != pcusb ] || oal_extra+=(-DALSOFT_CPUEXT_SSE=OFF -DALSOFT_CPUEXT_SSE2=OFF -DALSOFT_CPUEXT_SSE3=OFF -DALSOFT_CPUEXT_SSE4_1=OFF)
     cmake -S "$BUILD_DIR/openal/$oal" -B "$BUILD_DIR/openal/build" -G Ninja -DCMAKE_BUILD_TYPE=Release ${oal_extra[@]+"${oal_extra[@]}"} \
         -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_CMAKE" -DCMAKE_SKIP_RPATH=ON -DLIBTYPE=SHARED -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF -DALSOFT_INSTALL=OFF \

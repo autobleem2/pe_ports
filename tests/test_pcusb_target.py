@@ -17,7 +17,7 @@ from test_rpi64_target import fake_tree, run_fake, report  # noqa: E402,F401
 
 mkmod = base.mkmod
 ROOT = base.ROOT
-PORTS_PCUSB = ("blastem", "commanderkeen", "ioquake3", "lzdoom", "openlara")
+PORTS_PCUSB = ("blastem", "commanderkeen", "ioquake3", "openlara")
 
 
 # ---- tools/mkmod.py ------------------------------------------------------------------------------------------------
@@ -178,7 +178,7 @@ def test_ports_pick_the_x86_build_on_pcusb():
     assert 'if [ "$TARGET" = pcusb ]; then arch=x86 isa=; fi' in _text("ports", "ioquake3", "build.sh")
     assert "cpu=i386 isa=" in _text("ports", "blastem", "build.sh")
     assert '[ "$TARGET" = pcusb ]' in _text("ports", "openlara", "build.sh")
-    assert "ALSOFT_CPUEXT_SSE2=OFF" in _text("ports", "lzdoom", "build.sh")
+    assert "pcusb" not in _text("ports", "lzdoom", "build.sh")
 
 
 def test_the_workflow_does_not_publish_pcusb_yet():
