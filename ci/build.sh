@@ -233,7 +233,10 @@ build_port() { # build_port <id>
     if [ "$(sed -n 's/^kind=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')" = data ]; then
         echo "    data package: no binary to check"
     else
-        check_binary "$STAGE/$(sed -n 's/^binary=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')"
+        # (binary.<target>= wins over binary=, as in mkmod.py)
+        bin=$(sed -n "s/^binary\\.$TARGET=//p" "$dir/port.ini" | head -n 1 | tr -d '\r')
+        [ -n "$bin" ] || bin=$(sed -n 's/^binary=//p' "$dir/port.ini" | head -n 1 | tr -d '\r')
+        check_binary "$STAGE/$bin"
     fi
 
     mkdir -p out

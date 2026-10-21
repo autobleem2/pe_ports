@@ -5,22 +5,25 @@
 # it (SDL_VIDEO_GL_DRIVER) so that SDL_GL_GetProcAddress, which the renderer asks for every GL function, finds gl4es's
 # functions and not the OpenGL ES ones of the context - nothing links to it.
 # ARCH=armv7l (not "arm"): only that name turns on the engine's ARM QVM compiler, and the game of OpenArena (its
-# game, cgame and ui QVMs) would otherwise run in the interpreter.
+# game, cgame and ui QVMs) would otherwise run in the interpreter. On the 64-bit Pi (rpi64) the engine has no QVM
+# compiler for aarch64: ARCH=aarch64, the QVMs run in the interpreter, and there is no -marm (32-bit ARM only).
 # Sourced by ci/build.sh with $SRC (patched upstream), $STAGE (the launcher folder's files), $PORT_DIR.
 port_build() {
     # BUILD_DIR is the Makefile's own variable for its output folder too (ci/build.sh exports one): name it
     local obj="$BUILD_DIR/obj"
-    CFLAGS="$ARM_FLAGS -marm" make -C "$SRC" -j "$JOBS" release BUILD_DIR="$obj" \
-        PLATFORM=linux ARCH=armv7l COMPILE_ARCH=armv7l CROSS_COMPILING=1 CC="$CC" \
+    local arch=armv7l isa=-marm
+    if [ "$TARGET" = rpi64 ]; then arch=aarch64 isa=; fi
+    CFLAGS="$ARM_FLAGS $isa" make -C "$SRC" -j "$JOBS" release BUILD_DIR="$obj" \
+        PLATFORM=linux ARCH=$arch COMPILE_ARCH=$arch CROSS_COMPILING=1 CC="$CC" \
         USE_INTERNAL_LIBS=1 USE_LOCAL_HEADERS=1 \
         USE_OPENAL=0 USE_CURL=0 USE_VOIP=0 USE_MUMBLE=0 USE_FREETYPE=0 USE_RENDERER_DLOPEN=1 \
         BUILD_CLIENT=1 BUILD_SERVER=0 BUILD_STANDALONE=0 BUILD_GAME_SO=0 BUILD_GAME_QVM=0 \
         BUILD_BASEGAME=0 BUILD_MISSIONPACK=0 BUILD_RENDERER_OPENGL2=0 \
         SDL_CFLAGS="$(pkg-config --cflags sdl2)" SDL_LIBS="$(pkg-config --libs sdl2)"
-    local out="$obj/release-linux-armv7l"
-    cp "$out/ioquake3.armv7l" "$out/renderer_opengl1_armv7l.so" "$STAGE/"
-    "$STRIP" "$STAGE/ioquake3.armv7l" "$STAGE/renderer_opengl1_armv7l.so"
-    check_binary "$STAGE/renderer_opengl1_armv7l.so"
+    local out="$obj/release-linux-$arch"
+    cp "$out/ioquake3.$arch" "$out/renderer_opengl1_$arch.so" "$STAGE/"
+    "$STRIP" "$STAGE/ioquake3.$arch" "$STAGE/renderer_opengl1_$arch.so"
+    check_binary "$STAGE/renderer_opengl1_$arch.so"
 
     # our start-up helper and the pad's bindings (files/)
     cp "$PORT_DIR/files/psc-pad.sh" "$STAGE/psc-pad.sh"
