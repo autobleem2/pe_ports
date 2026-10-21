@@ -18,7 +18,7 @@ import test_rpi_target as base  # noqa: E402
 
 mkmod = base.mkmod
 ROOT = base.ROOT
-PORTS64 = ("blastem", "commanderkeen", "openjazz", "tyrquake")
+PORTS64 = ("blastem", "commanderkeen", "dosbox", "ioquake3", "lzdoom", "openjazz", "openlara", "tyrquake")
 
 
 # ---- tools/mkmod.py ------------------------------------------------------------------------------------------------
@@ -64,7 +64,8 @@ def test_one_source_archive_serves_rpi64_too():
 
 
 def test_rpi64_launcher_keys_do_not_fall_back_to_rpi():
-    cfg = base.load("openlara")  # has env.rpi but no env.rpi64
+    cfg = base.load("openlara")
+    cfg["launcher"].pop("env.rpi64", None)  # a port with env.rpi but no env.rpi64
     assert mkmod.launcher_value(cfg, "env", "rpi") == "HOME=/var/volatile/launchtmp"
     assert mkmod.launcher_value(cfg, "env", "rpi64") == ""
     assert mkmod.launcher_value(cfg, "binary", "rpi64") == "OpenLara"  # the common key
