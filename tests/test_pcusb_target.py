@@ -181,5 +181,19 @@ def test_ports_pick_the_x86_build_on_pcusb():
     assert "pcusb" not in _text("ports", "lzdoom", "build.sh")
 
 
+def test_ioquake3_pcusb_ships_no_gl4es():
+    build = _text("ports", "ioquake3", "build.sh")
+    assert build.index('if [ "$TARGET" = pcusb ]; then return 0; fi') < build.index("gl4es-1.1.6")
+    cfg = base.load("ioquake3")
+    assert "SDL_VIDEO_GL_DRIVER" not in cfg["launcher"]["env.pcusb"]
+    assert "LD_LIBRARY_PATH" in cfg["launcher"]["env.pcusb"]
+    assert "SDL_VIDEO_GL_DRIVER" in cfg["launcher"]["env"]  # the console and the Pi keep gl4es
+    assert "COPYING-gl4es" in cfg["port"]["licence_files"].split()
+    assert "COPYING-gl4es" not in cfg["port"]["licence_files.pcusb"].split()
+    for key in ("changes_base.pcusb", "changes.pcusb"):
+        assert "gl4es" not in cfg["port"][key].replace("(no gl4es)", "").replace("no gl4es", "")
+        assert "libGL" not in cfg["port"][key]
+
+
 def test_the_workflow_does_not_publish_pcusb_yet():
     assert "pcusb" not in _text(".github", "workflows", "build.yml")

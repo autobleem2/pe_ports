@@ -391,7 +391,7 @@ def source_txt(cfg, source_url, sha, digest, image, target="psc"):
         out.append("  " + part.strip())
     out.append("")
     out.append("Our changes to the upstream:")
-    for part in p["changes"].split(";"):
+    for part in p.get("changes_base." + target, p["changes"]).split(";"):  # changes_base.<target>: a port whose base text does not fit a target
         out.append("  - " + part.strip())
     if target in ("rpi", "rpi64", "pcusb"):
         if target == "rpi":
@@ -669,7 +669,7 @@ def main():
         with open(os.path.join(folder, "SOURCE.txt"), "w", newline="\n") as f:
             f.write(source_txt(cfg, source_url, sha, digest, image, a.target))
         os.makedirs(os.path.join(folder, "licences"), exist_ok=True)
-        for lic in p["licence_files"].split():
+        for lic in p.get("licence_files." + a.target, p["licence_files"]).split():
             # GsKit/LICENSE -> licences/GsKit-LICENSE.txt: the path in the name keeps two LICENSE files apart
             name = lic.replace("/", "-")
             if not name.lower().endswith(".txt"):

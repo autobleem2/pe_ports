@@ -36,6 +36,8 @@ port_build() {
     # gl4es 1.1.6 (MIT): OpenGL 1.x/2.1 on top of OpenGL ES 2, for a GL context that SDL made (NOX11, NOEGL: it creates no
     # context of its own and loads the console's libGLESv2.so.2 at run time). Fetched against a pinned sha256, shipped
     # next to the program in lib/.
+    # Not on the PC stick (pcusb): its desktop OpenGL driver is the system's own, no gl4es there.
+    if [ "$TARGET" = pcusb ]; then return 0; fi
     local g4=gl4es-1.1.6
     fetch "$AB_DEPS_BASE/gl4es/$g4.tar.gz"         dca1d897e492a0cb163a3390f273fbd4cc7ab2367d236d93dc2b321ce108ed5c "$g4.tar.gz"         "https://github.com/ptitSeb/gl4es/archive/refs/tags/v1.1.6.tar.gz"
     mkdir -p "$BUILD_DIR/gl4es"
