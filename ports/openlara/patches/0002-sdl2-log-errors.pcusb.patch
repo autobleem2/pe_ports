@@ -1,0 +1,33 @@
+--- a/src/platform/sdl2/main.cpp
++++ b/src/platform/sdl2/main.cpp
+@@ -430,7 +430,9 @@
+ 
+     int w, h;
+ 
+-    SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS|SDL_INIT_GAMECONTROLLER);
++    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS|SDL_INIT_GAMECONTROLLER) != 0)
++        LOG("SDL2: SDL_Init failed: %s\n", SDL_GetError());
++    LOG("SDL2: video driver %s\n", SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "(none)");
+ 
+     SDL_GetCurrentDisplayMode(0, &sdl_displaymode);
+ 
+@@ -454,11 +456,19 @@
+     Core::width  = w;
+     Core::height = h;
+ 
++    if (!sdl_window)
++        LOG("SDL2: SDL_CreateWindow failed: %s\n", SDL_GetError());
++
+     SDL_GLContext context = SDL_GL_CreateContext(sdl_window);
++    if (!context)
++        LOG("SDL2: SDL_GL_CreateContext failed: %s\n", SDL_GetError());
+     SDL_GL_SetSwapInterval(0);
+ 
+     sdl_renderer = SDL_CreateRenderer(sdl_window, -1,
+ 	  SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
++    if (!sdl_renderer)
++        LOG("SDL2: SDL_CreateRenderer failed: %s\n", SDL_GetError());
++    LOG("SDL2: window %dx%d, GL context %s, renderer %s\n", w, h, context ? "yes" : "NO", sdl_renderer ? "yes" : "NO");
+ 
+     SDL_ShowCursor(SDL_DISABLE);
+ 

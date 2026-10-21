@@ -5,6 +5,7 @@
 #   ci/build.sh all                                         every port in ports/
 #   ci/build.sh --target rpi <port>|all                     the same for the Raspberry Pi 32-bit (default: --target psc)
 #   ci/build.sh --target rpi64 <port>|all                   the same for the Raspberry Pi 64-bit
+#   ci/build.sh --target pcusb <port>|all                   the same for the PC stick (PC-USB: 32-bit x86, i386, no SSE2)
 #
 # For each port the result is, in out/:
 #   <id>-<version>.mod                  the PE package (what the Store hands out; the program, its launcher files,
@@ -30,6 +31,9 @@
 # ports are not rebuilt (their packages are the psc build's).
 # --target rpi64: the Raspberry Pi 64-bit (Raspberry Pi OS arm64): the same with the image's aarch64 cross compiler against
 # its Debian 12 arm64 libraries.
+# --target pcusb: the PC stick (PC-USB, a Linux on a USB stick for old PCs): 32-bit x86 (i386, ELF Intel 80386), no SSE or
+# SSE2 (-march=i686 -mno-sse -mno-sse2, x87 floating point: the machines it is for include Pentium III and Athlon XP class
+# CPUs), against the Debian 12 i386 libraries of the image, the system's SDL2.
 #
 # On the build server: docker run --rm -u $(id -u):$(id -g) -v $PWD:/src -w /src \
 #                          -e AB_BUILD_IMAGE_DIGEST=<RepoDigest of the image> \
@@ -41,19 +45,19 @@ ROOT=$PWD
 JOBS="${JOBS:-$(nproc)}"
 PSC=${AB_PSC_TOOLCHAIN:-/opt/psc}
 
-# --target psc|rpi|rpi64 (default psc, or $AB_PE_TARGET): the machine the programs are built for. The data ports are shared
-# by all and are not rebuilt for rpi or rpi64.
+# --target psc|rpi|rpi64|pcusb (default psc, or $AB_PE_TARGET): the machine the programs are built for. The data ports are
+# shared by all and are not rebuilt for rpi, rpi64 or pcusb.
 TARGET=${AB_PE_TARGET:-psc}
 args=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --target) TARGET=${2:?--target needs psc, rpi or rpi64}; shift 2 ;;
+        --target) TARGET=${2:?--target needs psc, rpi, rpi64 or pcusb}; shift 2 ;;
         --target=*) TARGET=${1#--target=}; shift ;;
         *) args+=("$1"); shift ;;
     esac
 done
 set -- "${args[@]+"${args[@]}"}"
-case "$TARGET" in psc | rpi | rpi64) ;; *) echo "unknown target: $TARGET (psc, rpi or rpi64)" >&2; exit 2 ;; esac
+case "$TARGET" in psc | rpi | rpi64 | pcusb) ;; *) echo "unknown target: $TARGET (psc, rpi, rpi64 or pcusb)" >&2; exit 2 ;; esac
 export JOBS PSC ROOT TARGET
 # the checkout belongs to another user than the container's (git refuses "dubious ownership" otherwise)
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
@@ -72,6 +76,26 @@ if [ "$TARGET" = psc ]; then
     export ZLIB_A="$PSC/sysroot/usr/lib/arm-linux-gnueabihf/libz.a" ZLIB_INC="$PSC/sysroot/usr/include"
     # sdl2-config of the console's SDL2 family first on the PATH (a Makefile that asks for it gets the console's flags)
     export PATH="$PSC/sdl2/bin:$PATH"
+elif [ "$TARGET" = pcusb ]; then
+    # the PC stick (PC-USB, Debian 12 i386 libraries): the image's own gcc in 32-bit mode (-m32) against its i386 multiarch
+    # libraries (SDL2 2.26 family, GLES2, EGL, ALSA, zlib); SDL2 is the system's on the stick, nothing of it ships.
+    # The CPU is a 32-bit x86 without SSE and SSE2 (i686 instruction set, x87 floating point): ARM_FLAGS, the name the
+    # ports' recipes use for "the target's CPU switches", holds them. The build tools (strip, ar, readelf, objdump) are the
+    # image's own: they read i386 ELF files too. A Makefile that asks for CC gets a one-line wrapper script (CC may not
+    # hold a word with spaces: some recipes quote it).
+    PE_TRIPLE=i386-linux-gnu
+    export ARM_FLAGS="-m32 -march=i686 -mtune=generic -mno-sse -mno-sse2 -mfpmath=387"
+    export TOOLCHAIN_PLAIN="$ROOT/ci/pcusb.cmake"
+    export PE_TRIPLE
+    mkdir -p "$ROOT/build/shim"
+    printf '%s\n' '#!/bin/sh' 'exec gcc -m32 "$@"' > "$ROOT/build/shim/i386-gcc"
+    printf '%s\n' '#!/bin/sh' 'exec g++ -m32 "$@"' > "$ROOT/build/shim/i386-g++"
+    printf '%s\n' '#!/bin/sh' 'exec pkg-config sdl2 "$@"' > "$ROOT/build/shim/sdl2-config"
+    chmod +x "$ROOT/build/shim/i386-gcc" "$ROOT/build/shim/i386-g++" "$ROOT/build/shim/sdl2-config"
+    export PATH="$ROOT/build/shim:$PATH"
+    export CC=i386-gcc CXX=i386-g++ STRIP=strip AR=ar
+    export PKG_CONFIG_LIBDIR=/usr/lib/$PE_TRIPLE/pkgconfig:/usr/share/pkgconfig
+    export ZLIB_A=/usr/lib/$PE_TRIPLE/libz.a ZLIB_INC=/usr/include
 else
     # the Raspberry Pi (Raspberry Pi OS, Debian 12 libraries): the image's cross compiler against its multiarch libraries
     # (SDL2 2.26 family, GLES2, EGL, ALSA, zlib); SDL2 is the system's on the Pi, nothing of it ships. rpi is armhf (32-bit),
@@ -132,6 +156,8 @@ check_binary() {
     for f in "$@"; do
         if [ "$TARGET" = rpi64 ]; then
             file "$f" | grep -q 'ELF 64-bit LSB.*ARM aarch64'
+        elif [ "$TARGET" = pcusb ]; then
+            file "$f" | grep -q 'ELF 32-bit LSB.*Intel 80386'
         else
             file "$f" | grep -q 'ELF 32-bit LSB.*ARM'
         fi
@@ -143,6 +169,17 @@ check_binary() {
             # the Pi: hard float (armhf; aarch64 has no such tag), and nothing newer than the glibc of the image's Debian 12
             # (Raspberry Pi OS bookworm)
             readelf=$PE_TRIPLE-readelf
+            if [ "$TARGET" = pcusb ]; then
+                readelf=readelf
+                # no SSE or SSE2: not one instruction that names an xmm register (the stick's CPUs may lack them)
+                # (counted, not grep -q: it would end the pipe early and pipefail would call that a failure)
+                local sse
+                sse=$(objdump -d --no-show-raw-insn "$f" | grep -cE '%xmm[0-7]' || true)
+                if [ "${sse:-0}" -gt 0 ]; then
+                    echo "    ERROR: $(basename "$f") uses SSE/SSE2: $sse instructions with xmm registers" >&2
+                    return 1
+                fi
+            fi
             if [ "$TARGET" = rpi ]; then "$readelf" -A "$f" | grep -q 'Tag_ABI_VFP_args: VFP registers'; fi
             if "$readelf" --dyn-syms -W "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sed 's/GLIBC_2\.//' | awk '$1 > 36 { bad = 1 } END { exit !bad }'; then
                 echo "    ERROR: $(basename "$f") needs a glibc newer than 2.36" >&2
@@ -215,11 +252,12 @@ build_port() { # build_port <id>
     local p
     for p in "$dir"/patches/*.patch; do
         [ -f "$p" ] || continue
-        # NNNN-name.psc.patch / .rpi.patch / .rpi64.patch belong to one target; the rest to both (applied in name order)
+        # NNNN-name.psc.patch / .rpi.patch / .rpi64.patch / .pcusb.patch belong to one target; the rest to all (applied in name order)
         case "$p" in
             *.psc.patch) [ "$TARGET" = psc ] || continue ;;
             *.rpi.patch) [ "$TARGET" = rpi ] || continue ;;
             *.rpi64.patch) [ "$TARGET" = rpi64 ] || continue ;;
+            *.pcusb.patch) [ "$TARGET" = pcusb ] || continue ;;
         esac
         echo "patch: ${p#"$ROOT"/}"
         patch -d "$SRC" -p1 --no-backup-if-mismatch < "$p"
@@ -243,7 +281,7 @@ build_port() { # build_port <id>
     python3 tools/mkmod.py "$id" --target "$TARGET" --stage "$STAGE" --src "$SRC" --out out
 }
 
-[ $# -gt 0 ] || { echo "usage: $0 [--target psc|rpi|rpi64] <port>|all" >&2; exit 2; }
+[ $# -gt 0 ] || { echo "usage: $0 [--target psc|rpi|rpi64|pcusb] <port>|all" >&2; exit 2; }
 for target in "$@"; do
     case "$target" in
         all) for d in ports/*/; do build_port "$(basename "$d")"; done ;;

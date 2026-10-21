@@ -60,7 +60,7 @@ def test_one_source_archive_serves_rpi64_too():
             names = t.getnames()
             info = t.extractfile([n for n in names if n.endswith("BUILD-INFO.txt")][0]).read().decode()
         assert any(n.endswith("/ci/rpi64.cmake") for n in names)
-        assert "toolchain (rpi64):" in info and "[--target psc|rpi|rpi64]" in info
+        assert "toolchain (rpi64):" in info and "[--target psc|rpi|rpi64|pcusb]" in info
 
 
 def test_rpi64_launcher_keys_do_not_fall_back_to_rpi():
@@ -201,7 +201,7 @@ def test_rpi64_toolchain_file_is_aarch64():
 def test_blastem_build_has_no_32bit_switch_on_rpi64():
     with open(os.path.join(ROOT, "ports", "blastem", "build.sh"), encoding="utf-8") as f:
         text = f.read()
-    assert 'if [ "$TARGET" = rpi64 ]; then cpu=aarch64 isa=; else cpu=armv7 isa=-marm; fi' in text
+    assert 'if [ "$TARGET" = rpi64 ]; then cpu=aarch64 isa=; elif [ "$TARGET" = pcusb ]; then cpu=i386 isa=; else cpu=armv7 isa=-marm; fi' in text
 
 
 def test_rpi64_patch_files_are_named_for_one_target():

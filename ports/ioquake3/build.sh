@@ -13,6 +13,9 @@ port_build() {
     local obj="$BUILD_DIR/obj"
     local arch=armv7l isa=-marm
     if [ "$TARGET" = rpi64 ]; then arch=aarch64 isa=; fi
+    # the PC stick: ARCH=x86 (the engine's 32-bit PC; its QVM compiler emits x86 code at run time), CFLAGS from $ARM_FLAGS
+    # keep SSE out of the compiled code; the engine's assembler files are 386 integer code
+    if [ "$TARGET" = pcusb ]; then arch=x86 isa=; fi
     CFLAGS="$ARM_FLAGS $isa" make -C "$SRC" -j "$JOBS" release BUILD_DIR="$obj" \
         PLATFORM=linux ARCH=$arch COMPILE_ARCH=$arch CROSS_COMPILING=1 CC="$CC" \
         USE_INTERNAL_LIBS=1 USE_LOCAL_HEADERS=1 \
