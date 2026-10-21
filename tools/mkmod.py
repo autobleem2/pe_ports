@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Packs one built port into a PE package (.mod) and its corresponding-source archive.
 
-    tools/mkmod.py <id> [--target psc|rpi] --stage DIR --src DIR --out DIR
+    tools/mkmod.py <id> [--target psc|rpi|rpi64|pcusb] --stage DIR --src DIR --out DIR
 
 <id>     the port (ports/<id>/port.ini)
 --stage  the launcher folder's files as the port's build left them: the program, its libraries, the allowed
@@ -10,7 +10,9 @@
 --out    where out/<id>-<version>.mod and out/<id>-<version>-source.tar.gz go
 --target the machine the program was built for (default psc): psc writes "Platform: SONYPSC armhf" into the control
          file and out/<id>-<version>.mod; rpi (the Raspberry Pi 32-bit) writes "Platform: RPI armhf" and
-         out/<id>-<version>-rpi.mod - proc_pe lists an App only on the machine its Platform names. The source archive
+         out/<id>-<version>-rpi.mod; rpi64 (the Raspberry Pi 64-bit) writes "Platform: RPI arm64" and
+         out/<id>-<version>-rpi64.mod; pcusb (the PC stick, 32-bit x86 without SSE2) writes "Platform: PCUSB i386", "Architecture:
+         i386" and out/<id>-<version>-pcusb.mod - proc_pe lists an App only on the machine its Platform names. The source archive
          is the same file for both (its BUILD-INFO.txt names both toolchains); a data package is the same for both
 
 What it adds to the stage: launch.sh and launcher.cfg (generated from port.ini - nothing of any third party's),
@@ -56,11 +58,14 @@ MAINTAINER = "AutoBleem team"
 # (the launcher files the App there, as "<title> (mod)") and into the Store item
 CATEGORIES = ("games", "emulators", "tools", "media", "other", "packages")
 # the machines a program is built for: the control file's Platform line (proc_pe reads its first word) and the .mod's name suffix
-TARGETS = {"psc": ("SONYPSC armhf", ""), "rpi": ("RPI armhf", "-rpi")}
+TARGETS = {"psc": ("SONYPSC armhf", ""), "rpi": ("RPI armhf", "-rpi"),
+           "rpi64": ("RPI arm64", "-rpi64"), "pcusb": ("PCUSB i386", "-pcusb")}
+# the control file's Architecture field of a target
+ARCH = {"psc": "armhf", "rpi": "armhf", "rpi64": "arm64", "pcusb": "i386"}
 
 
 def mod_filename(pid, ver, target="psc"):
-    """The .mod's file name: <id>-<version>.mod for the console, <id>-<version>-rpi.mod for the Pi."""
+    """The .mod's file name: <id>-<version>.mod for the console, <id>-<version>-rpi.mod for the Pi, -rpi64 for the 64-bit Pi."""
     return "%s-%s%s.mod" % (pid, ver, TARGETS[target][1])
 
 
@@ -285,7 +290,7 @@ def make_source(port, cfg, out_dir, mtime, build_info):
             dirs[:] = sorted(d for d in dirs if d not in ("upstream", "data"))
             for n in sorted(names):
                 files.append(os.path.join(base, n))
-        for extra in ("ci/build.sh", "ci/rpi.cmake", "tools/mkmod.py", "LICENSE", "README.md"):
+        for extra in ("ci/build.sh", "ci/rpi.cmake", "ci/rpi64.cmake", "ci/pcusb.cmake", "tools/mkmod.py", "LICENSE", "README.md"):
             files.append(os.path.join(ROOT, extra))
         for f in files:
             add_file(t, f, top + "/" + os.path.relpath(f, ROOT).replace(os.sep, "/"), mtime)
@@ -386,13 +391,20 @@ def source_txt(cfg, source_url, sha, digest, image, target="psc"):
         out.append("  " + part.strip())
     out.append("")
     out.append("Our changes to the upstream:")
-    for part in p["changes"].split(";"):
+    for part in p.get("changes_base." + target, p["changes"]).split(";"):  # changes_base.<target>: a port whose base text does not fit a target
         out.append("  - " + part.strip())
-    if target == "rpi":
-        out.append("  - this package is built for the Raspberry Pi 32-bit (Raspberry Pi OS armhf) with the build image's")
-        out.append("    arm-linux-gnueabihf cross compiler against its Debian 12 libraries (ci/build.sh --target rpi); it runs on")
+    if target in ("rpi", "rpi64", "pcusb"):
+        if target == "rpi":
+            out.append("  - this package is built for the Raspberry Pi 32-bit (Raspberry Pi OS armhf) with the build image's")
+            out.append("    arm-linux-gnueabihf cross compiler against its Debian 12 libraries (ci/build.sh --target rpi); it runs on")
+        elif target == "pcusb":
+            out.append("  - this package is built for the PC stick (PC-USB, 32-bit x86, i386, without SSE and SSE2) with the build image's")
+            out.append("    gcc in 32-bit mode against its Debian 12 i386 libraries (ci/build.sh --target pcusb); it runs on")
+        else:
+            out.append("  - this package is built for the Raspberry Pi 64-bit (Raspberry Pi OS arm64) with the build image's")
+            out.append("    aarch64-linux-gnu cross compiler against its Debian 12 libraries (ci/build.sh --target rpi64); it runs on")
         out.append("    the system's SDL2")
-        for part in p.get("changes.rpi", "").split(";"):
+        for part in p.get("changes." + target, "").split(";"):
             if part.strip():
                 out.append("  - " + part.strip())
     out.append("  - launch.sh, launcher.cfg and the icon are generated by tools/mkmod.py (not taken from anywhere)")
@@ -632,7 +644,9 @@ def main():
         # one archive serves both targets, so nothing in it depends on the one being packed now
         "toolchain (psc):    gcc-6 against the console's Debian Stretch sysroot (/opt/psc), SDL2 2.0.18 family",
         "toolchain (rpi):    arm-linux-gnueabihf-gcc 12 against the image's Debian 12 armhf libraries (Raspberry Pi 32-bit), the system's SDL2",
-        "rebuild:            docker run --rm -v $PWD:/src -w /src -e AB_BUILD_IMAGE_DIGEST=%s %s@%s ci/build.sh [--target psc|rpi] %s" %
+        "toolchain (rpi64):  aarch64-linux-gnu-gcc 12 against the image's Debian 12 arm64 libraries (Raspberry Pi 64-bit), the system's SDL2",
+        "toolchain (pcusb):  gcc -m32 -march=i686 -mno-sse -mno-sse2 against the image's Debian 12 i386 libraries (PC stick, no SSE2), the system's SDL2",
+        "rebuild:            docker run --rm -v $PWD:/src -w /src -e AB_BUILD_IMAGE_DIGEST=%s %s@%s ci/build.sh [--target psc|rpi|rpi64|pcusb] %s" %
         (digest, "ghcr.io/autobleem2/autobleem-build", digest, pid), ""])
     src_path, sha = make_source(a, cfg, a.out, mtime, build_info)
     source_url = "%s/%s/%s" % (base, pid, os.path.basename(src_path))
@@ -655,7 +669,7 @@ def main():
         with open(os.path.join(folder, "SOURCE.txt"), "w", newline="\n") as f:
             f.write(source_txt(cfg, source_url, sha, digest, image, a.target))
         os.makedirs(os.path.join(folder, "licences"), exist_ok=True)
-        for lic in p["licence_files"].split():
+        for lic in p.get("licence_files." + a.target, p["licence_files"]).split():
             # GsKit/LICENSE -> licences/GsKit-LICENSE.txt: the path in the name keeps two LICENSE files apart
             name = lic.replace("/", "-")
             if not name.lower().endswith(".txt"):
@@ -694,7 +708,7 @@ def main():
         # ---- control.tar.gz (the Debian control file: the Description's continuation lines carry the metadata)
         desc = [p["description"]]
         control = [
-            "Package: %s" % pid, "Version: %s" % ver, "Architecture: armhf", "Maintainer: %s" % MAINTAINER,
+            "Package: %s" % pid, "Version: %s" % ver, "Architecture: %s" % ARCH[a.target], "Maintainer: %s" % MAINTAINER,
             "Installed-Size: %d" % ((size_kb + 1023) // 1024),
             "Description: %s" % p["name"],
             " Type: USB_MOD",

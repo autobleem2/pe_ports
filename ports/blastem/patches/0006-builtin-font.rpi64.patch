@@ -1,0 +1,15 @@
+--- a/nuklear_ui/blastem_nuklear.c
++++ b/nuklear_ui/blastem_nuklear.c
+@@ -2796,8 +2796,10 @@
+ 		nk_sdl_font_stash_begin(ctx, &atlas);
+ #endif
+ 	}
+-	uint32_t font_size;
+-	uint8_t *font = default_font(&font_size);
++	//the Pi has fontconfig and fonts, and Nuklear's baker aborts on DejaVu Sans (a stock Pi OS font; the
++	//nk_tt__rasterize_sorted_edges assertion): the menu uses the built-in font on every machine
++	uint32_t font_size = 0;
++	uint8_t *font = NULL;
+ #ifdef AB_PSC
+ 	if (!font) {
+ 		def_font = nk_font_atlas_add_default(atlas, height / 24, 0);
