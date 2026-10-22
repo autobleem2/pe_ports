@@ -67,8 +67,33 @@ def test_pcusb_launcher_keys_do_not_fall_back_to_the_other_machines():
     assert mkmod.launcher_value(cfg, "binary", "psc") == "ioquake3.armv7l"
     cfg = base.load("openlara")
     assert mkmod.launcher_value(cfg, "env", "pcusb") == "HOME=/var/volatile/launchtmp"
-    assert mkmod.launcher_value(cfg, "pre", "pcusb") == mkmod.launcher_value(cfg, "pre", "rpi")
+    pre_pc = mkmod.launcher_value(cfg, "pre", "pcusb")
+    assert "PSXDATA/GYM.PSX" in pre_pc and "/data/power" not in pre_pc and "/data/power" in mkmod.launcher_value(cfg, "pre", "rpi")
     assert mkmod.launcher_value(cfg, "pre", "psc") == ""
+
+
+# the console's paths the PC stick does not have; psc, rpi and rpi64 keep them
+PSC_ONLY = ("/var/volatile", "/media/project_eris", "/data/power", "project_eris.cfg", "launchtmp")
+
+
+@pytest.mark.parametrize("pid", PORTS_PCUSB)
+def test_the_pcusb_launch_sh_names_no_console_path(pid):
+    cfg = base.load(pid)
+    if mkmod.is_data_mod(cfg):
+        return
+    script = mkmod.launch_sh(cfg, "pcusb")
+    for path in PSC_ONLY:
+        assert path not in script, (pid, path)
+    assert 'PE_APP_DIR=$(cd "$(dirname "$0")" && pwd)\ncd "${PE_APP_DIR}"\n' in script
+    assert "./%s" % mkmod.launcher_value(cfg, "binary", "pcusb") in script
+    assert script.startswith("#!/bin/sh\n")
+
+
+@pytest.mark.parametrize("target", ("psc", "rpi", "rpi64"))
+def test_the_console_and_pi_launch_sh_keep_their_paths(target):
+    script = mkmod.launch_sh(base.load("openjazz"), target)
+    assert '. "/var/volatile/project_eris.cfg"\ncd "/var/volatile/launchtmp"\n' in script
+    assert 'echo -n 2 > "/data/power/disable"' in script and "PE_APP_DIR" not in script
 
 
 def test_pcusb_changes_come_from_changes_pcusb_only():
